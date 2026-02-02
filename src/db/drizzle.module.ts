@@ -6,16 +6,16 @@ export const DRIZZLE = Symbol('DRIZZLE');
 
 @Global()
 @Module({
-    providers: [
-        {
-            provide: DRIZZLE,
-            inject: [ConfigService],
-            useFactory: (configService: ConfigService) => {
-                const connectionString = configService.getOrThrow<string>('DATABASE_URL');
-                return createDrizzleClient(connectionString);
-            },
-        },
-    ],
-    exports: [DRIZZLE],
+  providers: [
+    {
+      provide: DRIZZLE,
+      inject: [ConfigService],
+      useFactory: (configService: ConfigService) => {
+        const connectionString = configService.getOrThrow<string>('DATABASE_URL');
+        return createDrizzleClient(connectionString);
+      },
+    },
+  ],
+  exports: [DRIZZLE],
 })
-export class DrizzleModule { }
+export class DrizzleModule {}

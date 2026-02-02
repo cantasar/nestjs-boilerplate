@@ -15,8 +15,8 @@ import { RedisModule } from './redis/redis.module';
     }),
     LoggerModule.forRoot({
       pinoHttp: {
-        transport: process.env.NODE_ENV !== 'production' ? { target: 'pino-pretty' } : undefined
-      }
+        transport: process.env.NODE_ENV !== 'production' ? { target: 'pino-pretty' } : undefined,
+      },
     }),
     RedisModule,
     DrizzleModule,
@@ -26,4 +26,4 @@ import { RedisModule } from './redis/redis.module';
   controllers: [],
   providers: [],
 })
-export class AppModule { }
+export class AppModule {}

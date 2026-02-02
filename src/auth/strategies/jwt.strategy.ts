@@ -21,11 +21,7 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
   }
 
   async validate(payload: { sub: number; email: string }) {
-    const [user] = await this.db
-      .select()
-      .from(users)
-      .where(eq(users.id, payload.sub))
-      .limit(1);
+    const [user] = await this.db.select().from(users).where(eq(users.id, payload.sub)).limit(1);
 
     if (user) {
       // eslint-disable-next-line @typescript-eslint/no-unused-vars

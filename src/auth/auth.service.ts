@@ -30,7 +30,7 @@ export class AuthService {
     private configService: ConfigService,
     @Inject('REDIS_CLIENT') private readonly redis: Redis,
     private mailService: MailService,
-  ) { }
+  ) {}
 
   async register(registerDto: RegisterDto) {
     const { email, password, firstName, lastName } = registerDto;
@@ -80,11 +80,7 @@ export class AuthService {
   async login(loginDto: LoginDto) {
     const { email, password } = loginDto;
 
-    const [user] = await this.db
-      .select()
-      .from(users)
-      .where(eq(users.email, email))
-      .limit(1);
+    const [user] = await this.db.select().from(users).where(eq(users.email, email)).limit(1);
 
     if (!user) {
       throw new UnauthorizedException('Invalid credentials');
@@ -117,11 +113,7 @@ export class AuthService {
   async forgotPassword(dto: ForgotPasswordDto) {
     const { email } = dto;
 
-    const [user] = await this.db
-      .select()
-      .from(users)
-      .where(eq(users.email, email))
-      .limit(1);
+    const [user] = await this.db.select().from(users).where(eq(users.email, email)).limit(1);
 
     if (user) {
       // Rate Limit Check
@@ -163,10 +155,7 @@ export class AuthService {
 
     const hashedPassword = await bcrypt.hash(newPassword, 10);
 
-    await this.db
-      .update(users)
-      .set({ password: hashedPassword })
-      .where(eq(users.email, email));
+    await this.db.update(users).set({ password: hashedPassword }).where(eq(users.email, email));
 
     await this.redis.del(key);
 
@@ -179,11 +168,7 @@ export class AuthService {
         secret: this.configService.get('JWT_SECRET'),
       });
 
-      const [user] = await this.db
-        .select()
-        .from(users)
-        .where(eq(users.id, payload.sub))
-        .limit(1);
+      const [user] = await this.db.select().from(users).where(eq(users.id, payload.sub)).limit(1);
 
       if (!user) throw new UnauthorizedException('User not found');
 
@@ -222,9 +207,6 @@ export class AuthService {
   }
 
   private async updateRefreshToken(userId: number, refreshToken: string) {
-    await this.db
-      .update(users)
-      .set({ refreshToken })
-      .where(eq(users.id, userId));
+    await this.db.update(users).set({ refreshToken }).where(eq(users.id, userId));
   }
 }
