@@ -1,5 +1,4 @@
 import { pgTable, serial, varchar, text, boolean, timestamp } from 'drizzle-orm/pg-core';
-// import { relations } from 'drizzle-orm';
 
 export const users = pgTable('users', {
   id: serial('id').primaryKey(),
@@ -17,12 +16,5 @@ export const users = pgTable('users', {
     .notNull(),
 });
 
-// Add relations here:
-// export const usersRelations = relations(users, ({ one, many }) => ({
-// 	preferences: one(userPreferences),
-// 	courses: many(courses),
-// }));
-
-// Types
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;

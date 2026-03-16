@@ -17,10 +17,8 @@ class RedisLifecycle implements OnModuleDestroy {
     {
       provide: 'REDIS_CLIENT',
       inject: [ConfigService],
-      useFactory: (configService: ConfigService) => {
-        const redisUrl = configService.getOrThrow<string>('REDIS_URL');
-        return new Redis(redisUrl);
-      },
+      useFactory: (config: ConfigService) =>
+        new Redis(config.getOrThrow<string>('REDIS_URL')),
     },
     RedisLifecycle,
   ],

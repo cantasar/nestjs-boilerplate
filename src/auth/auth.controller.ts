@@ -1,12 +1,12 @@
 import { Body, Controller, Post } from '@nestjs/common';
+import { ApiResponse, ApiTags } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
-import { ResponseMessage } from '../common/decorators/response-message.decorator';
-import { ApiTags } from '@nestjs/swagger';
+import { AuthResponseDto, RefreshResponseDto } from './dto/auth-response.dto';
 
 @ApiTags('Auth')
 @Controller({ path: 'auth', version: '1' })
@@ -14,32 +14,38 @@ export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   @Post('register')
-  @ResponseMessage('User registered successfully')
-  register(@Body() registerDto: RegisterDto) {
-    return this.authService.register(registerDto);
+  @ApiResponse({ status: 201, description: 'Kayıt başarılı', type: AuthResponseDto })
+  @ApiResponse({ status: 409, description: 'Email zaten kullanımda' })
+  register(@Body() dto: RegisterDto) {
+    return this.authService.register(dto);
   }
 
   @Post('login')
-  @ResponseMessage('User logged in successfully')
-  login(@Body() loginDto: LoginDto) {
-    return this.authService.login(loginDto);
+  @ApiResponse({ status: 200, description: 'Giriş başarılı', type: AuthResponseDto })
+  @ApiResponse({ status: 401, description: 'Geçersiz kimlik bilgileri' })
+  login(@Body() dto: LoginDto) {
+    return this.authService.login(dto);
   }
 
   @Post('forgot-password')
-  @ResponseMessage('If this email exists, a verification code has been sent.')
-  forgotPassword(@Body() forgotPasswordDto: ForgotPasswordDto) {
-    return this.authService.forgotPassword(forgotPasswordDto);
+  @ApiResponse({ status: 200, description: 'Email varsa kod gönderildi' })
+  async forgotPassword(@Body() dto: ForgotPasswordDto) {
+    await this.authService.forgotPassword(dto.email);
+    return { message: 'If the email exists, a verification code has been sent.' };
   }
 
   @Post('reset-password')
-  @ResponseMessage('Password reset successfully')
-  resetPassword(@Body() resetPasswordDto: ResetPasswordDto) {
-    return this.authService.resetPassword(resetPasswordDto);
+  @ApiResponse({ status: 200, description: 'Şifre güncellendi' })
+  @ApiResponse({ status: 400, description: 'Geçersiz veya süresi dolmuş kod' })
+  async resetPassword(@Body() dto: ResetPasswordDto) {
+    await this.authService.resetPassword(dto.email, dto.code, dto.newPassword);
+    return { success: true };
   }
 
   @Post('refresh')
-  @ResponseMessage('Token refreshed')
-  refresh(@Body() refreshTokenDto: RefreshTokenDto) {
-    return this.authService.refresh(refreshTokenDto.refreshToken);
+  @ApiResponse({ status: 200, description: 'Token yenilendi', type: RefreshResponseDto })
+  @ApiResponse({ status: 401, description: 'Geçersiz refresh token' })
+  refresh(@Body() dto: RefreshTokenDto) {
+    return this.authService.refresh(dto.refreshToken);
   }
 }
