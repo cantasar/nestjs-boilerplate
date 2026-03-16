@@ -18,10 +18,10 @@ npm install
 cp .env.example .env
 # .env dosyasını düzenleyin
 
-# Veritabanı (Docker ile)
+# Veritabanı (opsiyonel - local dev için)
 docker compose up -d
 
-# Migration
+# Migration (Neon/Cloud SQL kullanıyorsanız DATABASE_URL ile)
 npm run db:push
 
 # Başlat
