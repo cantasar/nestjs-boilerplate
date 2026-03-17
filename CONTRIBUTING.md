@@ -1,64 +1,64 @@
-# Katkı Rehberi (CONTRIBUTING)
+# Contributing Guide
 
-Bu doküman, bu NestJS template’ini geliştirmek isteyen katkı sahipleri için çalışma kurallarını ve kalite standartlarını tanımlar.
+This document defines working rules and quality standards for contributors who want to improve this NestJS template.
 
-## 1) Genel İlkeler
+## 1) General Principles
 
-- Bu repository bir **template** olduğu için değişikliklerin amacı; yeni projelere kopyalanınca minimum eforla çalışacak, anlaşılır ve sürdürülebilir bir temel sağlamaktır.
-- Backward compatibility mümkün olduğunca korunmalıdır. Kırıcı değişiklikler (breaking changes) net şekilde belirtilmelidir.
-- Güvenlik ve gizlilik önceliklidir. Hiçbir şekilde gerçek anahtar/şifre/secret repository’ye eklenmemelidir.
+- Since this repository is a **template**, the goal of changes is to provide a foundation that works with minimal effort when copied to new projects, and is understandable and maintainable.
+- Backward compatibility should be preserved as much as possible. Breaking changes must be clearly stated.
+- Security and privacy are priorities. Real keys/passwords/secrets must never be added to the repository.
 
-## 2) Branch Politikası
+## 2) Branch Policy
 
-- **`main` branch’ine doğrudan push yapmak yasaktır.**
-- Tüm değişiklikler **feature branch** üzerinden yapılır ve **Pull Request (PR)** ile `main`’e alınır.
-- Branch isimlendirme önerisi:
-  - `feature/<kisa-aciklama>`
-  - `fix/<kisa-aciklama>`
-  - `chore/<kisa-aciklama>`
-  - `docs/<kisa-aciklama>`
+- **Direct push to `main` branch is prohibited.**
+- All changes are made via **feature branches** and merged to `main` via **Pull Request (PR)**.
+- Branch naming suggestion:
+  - `feature/<short-description>`
+  - `fix/<short-description>`
+  - `chore/<short-description>`
+  - `docs/<short-description>`
 
-## 3) Issue ve PR Süreci
+## 3) Issue and PR Process
 
-- Büyük değişikliklerden önce bir **Issue** açılması önerilir.
-- PR’lar mümkünse küçük ve odaklı olmalıdır.
-- PR içinde aşağıdaki bilgiler bulunmalıdır:
-  - Değişikliğin amacı
-  - Kapsam (hangi modül/dosyalara dokunduğu)
-  - Çalıştırılan kontroller (lint/test)
-  - Varsa migration etkisi
-  - Varsa breaking change açıklaması
+- Opening an **Issue** before major changes is recommended.
+- PRs should be small and focused when possible.
+- PRs must include the following information:
+  - Purpose of the change
+  - Scope (which modules/files are affected)
+  - Checks run (lint/test)
+  - Migration impact if any
+  - Breaking change description if any
 
-## 4) Kodlama Standartları
+## 4) Coding Standards
 
-- Proje **TypeScript** ve **NestJS** best practice’lerine uygun olmalıdır.
-- Kod stili:
-  - Format için Prettier kullanılır.
-  - Lint için ESLint kuralları geçerli kabul edilir.
-- İsimlendirme:
-  - Modüller `*.module.ts`, servisler `*.service.ts`, controller’lar `*.controller.ts` şeklinde olmalıdır.
-- Sorumluluk ayrımı:
-  - Controller’lar mümkün olduğunca ince tutulmalı; iş kuralları servis katmanında olmalıdır.
-  - Ortak yapıların `src/common` altında toplanması tercih edilir.
+- The project must follow **TypeScript** and **NestJS** best practices.
+- Code style:
+  - Prettier is used for formatting.
+  - ESLint rules are accepted as valid for linting.
+- Naming:
+  - Modules `*.module.ts`, services `*.service.ts`, controllers `*.controller.ts`.
+- Separation of concerns:
+  - Controllers should be kept thin; business rules belong in the service layer.
+  - Common structures should be grouped under `src/common`.
 
-## 5) Zorunlu Kontroller
+## 5) Required Checks
 
-PR açmadan önce aşağıdaki komutların başarılı çalıştığından emin olun:
+Before opening a PR, ensure the following commands run successfully:
 
 ```bash
 pnpm lint
 pnpm test
 ```
 
-Değişikliğe göre ayrıca:
+Additionally, depending on the change:
 
 ```bash
 pnpm test:e2e
 ```
 
-## 6) Commit Mesajları
+## 6) Commit Messages
 
-Commit mesajlarında tutarlılık için aşağıdaki format önerilir:
+For consistency in commit messages, the following format is recommended:
 
 - `feat: ...`
 - `fix: ...`
@@ -67,32 +67,32 @@ Commit mesajlarında tutarlılık için aşağıdaki format önerilir:
 - `refactor: ...`
 - `test: ...`
 
-Örnek:
+Example:
 
 - `feat: add healthcheck endpoint`
 - `fix: handle redis connection errors`
 
-## 7) Konfigürasyon ve Secret Yönetimi
+## 7) Configuration and Secret Management
 
-- `.env` dosyası repository’ye eklenmemelidir.
-- `.env.example` güncel tutulmalıdır.
-- Yeni bir ortam değişkeni ekleniyorsa:
-  - `.env.example` içine örnek değer eklenmeli,
-  - `src/config/env.validation.ts` şemasına doğrulama kuralı eklenmelidir.
+- The `.env` file must not be added to the repository.
+- `.env.example` must be kept up to date.
+- When adding a new environment variable:
+  - Add an example value to `.env.example`,
+  - Add validation rule to the `src/config/env.validation.ts` schema.
 
-## 8) Veritabanı ve Migration
+## 8) Database and Migration
 
-- Şema değişiklikleri Drizzle yapısına uygun şekilde yapılmalıdır.
-- Migration gerekiyorsa PR açıklamasında belirtilmelidir.
+- Schema changes must follow the Drizzle structure.
+- If migration is required, it must be mentioned in the PR description.
 
-## 9) Güvenlik
+## 9) Security
 
-- Log’lara token/şifre/OTP gibi hassas veriler yazdırılmamalıdır.
-- Auth ile ilgili değişikliklerde edge-case senaryoları (süre aşımı, token yenileme, rate limit) göz önünde bulundurulmalıdır.
+- Sensitive data such as tokens/passwords/OTP must not be logged.
+- Auth-related changes must consider edge-case scenarios (timeout, token refresh, rate limit).
 
-## 10) İnceleme ve Onay
+## 10) Review and Approval
 
-- PR’lar en az bir reviewer tarafından incelenmelidir.
-- Reviewer feedback’leri uygulanmadan PR merge edilmemelidir.
+- PRs must be reviewed by at least one reviewer.
+- PRs must not be merged until reviewer feedback is addressed.
 
-Teşekkürler. Bu kurallara uyan katkılar, template’in daha hızlı olgunlaşmasını sağlar.
+Thank you. Contributions that follow these rules help the template mature faster.

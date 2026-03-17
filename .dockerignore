@@ -1,60 +1,12 @@
-# Dependencies
 node_modules
-npm-debug.log
-yarn-error.log
-pnpm-debug.log
-
-# Build outputs
 dist
-build
-.next
-out
-
-# Testing
+.git
+.github
+.env
+.env.*
+*.md
 coverage
 .nyc_output
 *.log
-
-# Environment
-.env
-.env.local
-.env.*.local
-.env.test
-.env.production
-
-# Version control
-.git
-.gitignore
-.gitattributes
-
-# IDE
 .vscode
 .idea
-*.swp
-*.swo
-*~
-
-# OS
-.DS_Store
-Thumbs.db
-
-# Docker
-Dockerfile*
-docker-compose*.yml
-.dockerignore
-
-# Documentation
-README.md
-CHANGELOG.md
-LICENSE
-*.md
-
-# CI/CD
-.github
-.gitlab-ci.yml
-.travis.yml
-
-# Misc
-tmp
-temp
-*.tmp

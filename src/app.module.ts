@@ -1,12 +1,14 @@
 import { Module } from '@nestjs/common';
-import { AuthModule } from './modules/auth/auth.module';
-import { DrizzleModule } from './core/db/drizzle.module';
-import { ConfigModule } from '@nestjs/config';
-import { validateEnv } from './config/env.validation';
-import { MailModule } from './core/mail/mail.module';
+import { APP_GUARD } from '@nestjs/core';
+import { ConfigModule, ConfigService } from '@nestjs/config';
+import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { LoggerModule } from 'nestjs-pino';
-import { RedisModule } from './core/redis/redis.module';
-import { HealthController } from './health.controller';
+import { validateEnv } from './config/env.validation';
+import { DatabaseModule } from './database/database.module';
+import { RedisModule } from './redis/redis.module';
+import { AuthModule } from './auth/auth.module';
+import { TodosModule } from './todos/todos.module';
+import { HealthModule } from './health/health.module';
 
 @Module({
   imports: [
@@ -19,12 +21,27 @@ import { HealthController } from './health.controller';
         transport: process.env.NODE_ENV !== 'production' ? { target: 'pino-pretty' } : undefined,
       },
     }),
+    ThrottlerModule.forRootAsync({
+      imports: [ConfigModule],
+      useFactory: (config: ConfigService) => [
+        {
+          ttl: config.getOrThrow<number>('RATE_LIMIT_TTL'),
+          limit: config.getOrThrow<number>('RATE_LIMIT_MAX'),
+        },
+      ],
+      inject: [ConfigService],
+    }),
+    DatabaseModule,
     RedisModule,
-    DrizzleModule,
     AuthModule,
-    MailModule,
+    TodosModule,
+    HealthModule,
   ],
-  controllers: [HealthController],
-  providers: [],
+  providers: [
+    {
+      provide: APP_GUARD,
+      useClass: ThrottlerGuard,
+    },
+  ],
 })
 export class AppModule {}

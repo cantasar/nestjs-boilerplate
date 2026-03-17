@@ -1,51 +1,24 @@
+# Optional: For local development only (DB + Redis)
+# Use managed DB like Neon/Supabase/Cloud SQL on Cloud Run
+
 version: '3.8'
 
 services:
-  api:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: nestjs_api_prod
+  db:
+    image: postgres:16-alpine
     ports:
-      - '3000:3000'
+      - "5432:5432"
     environment:
-      NODE_ENV: production
-      PORT: 3000
-      REDIS_URL: redis://redis:6379
-    env_file:
-      - .env
-    depends_on:
-      redis:
-        condition: service_healthy
-    restart: unless-stopped
-    networks:
-      - app-network
-    security_opt:
-      - no-new-privileges:true
-    read_only: true
-    tmpfs:
-      - /tmp
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: app
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
 
   redis:
     image: redis:7-alpine
-    container_name: nestjs_redis_prod
     ports:
-      - '6379:6379'
-    restart: unless-stopped
-    networks:
-      - app-network
-    healthcheck:
-      test: ['CMD', 'redis-cli', 'ping']
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    command: redis-server --appendonly yes
-    volumes:
-      - redis_data:/data
-
-networks:
-  app-network:
-    driver: bridge
+      - "6379:6379"
 
 volumes:
-  redis_data:
+  postgres_data:
