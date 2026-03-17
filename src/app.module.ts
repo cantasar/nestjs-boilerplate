@@ -6,6 +6,7 @@ import { validateEnv } from './config/env.validation';
 import { MailModule } from './core/mail/mail.module';
 import { LoggerModule } from 'nestjs-pino';
 import { RedisModule } from './core/redis/redis.module';
+import { HealthController } from './health.controller';
 
 @Module({
   imports: [
@@ -23,7 +24,7 @@ import { RedisModule } from './core/redis/redis.module';
     AuthModule,
     MailModule,
   ],
-  controllers: [],
+  controllers: [HealthController],
   providers: [],
 })
 export class AppModule {}

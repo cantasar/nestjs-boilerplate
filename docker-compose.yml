@@ -1,36 +1,51 @@
 version: '3.8'
 
 services:
-  # api:
-  #   build:
-  #     context: .
-  #     dockerfile: Dockerfile
-  #   container_name: Backend_api
-  #   ports:
-  #     - '3000:3000'
-  #   env_file:
-  #     - .env
-  #   restart: unless-stopped
-
-  db:
-    image: postgres:16-alpine
-    container_name: Backend_db
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: nestjs_api_prod
     ports:
-      - "5432:5432"
+      - '3000:3000'
     environment:
-      POSTGRES_USER: ${DATABASE_USER}
-      POSTGRES_PASSWORD: ${DATABASE_PASSWORD}
-      POSTGRES_DB: ${DATABASE_NAME}
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
+      NODE_ENV: production
+      PORT: 3000
+      REDIS_URL: redis://redis:6379
+    env_file:
+      - .env
+    depends_on:
+      redis:
+        condition: service_healthy
     restart: unless-stopped
+    networks:
+      - app-network
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
 
   redis:
     image: redis:7-alpine
-    container_name: Backend_redis
+    container_name: nestjs_redis_prod
     ports:
-      - "6379:6379"
+      - '6379:6379'
     restart: unless-stopped
+    networks:
+      - app-network
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+
+networks:
+  app-network:
+    driver: bridge
 
 volumes:
-  postgres_data:
+  redis_data:
