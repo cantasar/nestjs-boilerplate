@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, RequestMethod } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
@@ -17,6 +17,7 @@ import { HealthModule } from './health/health.module';
       validate: validateEnv,
     }),
     LoggerModule.forRoot({
+      forRoutes: [{ path: '*path', method: RequestMethod.ALL }],
       pinoHttp: {
         transport:
           process.env.NODE_ENV !== 'production'

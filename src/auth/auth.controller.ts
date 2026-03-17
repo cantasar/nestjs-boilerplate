@@ -1,5 +1,14 @@
 import { Body, Controller, Post } from '@nestjs/common';
-import { ApiResponse, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBadRequestResponse,
+  ApiBody,
+  ApiConflictResponse,
+  ApiCreatedResponse,
+  ApiOkResponse,
+  ApiOperation,
+  ApiTags,
+  ApiUnauthorizedResponse,
+} from '@nestjs/swagger';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
@@ -14,29 +23,34 @@ export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   @Post('register')
-  @ApiResponse({
-    status: 201,
+  @ApiOperation({ summary: 'Register a new user account' })
+  @ApiBody({ type: RegisterDto })
+  @ApiCreatedResponse({
     description: 'Registration successful',
     type: AuthResponseDto,
   })
-  @ApiResponse({ status: 409, description: 'Email already in use' })
+  @ApiConflictResponse({ description: 'Email already in use' })
   register(@Body() dto: RegisterDto) {
     return this.authService.register(dto);
   }
 
   @Post('login')
-  @ApiResponse({
-    status: 200,
+  @ApiOperation({ summary: 'Authenticate with email and password' })
+  @ApiBody({ type: LoginDto })
+  @ApiOkResponse({
     description: 'Login successful',
     type: AuthResponseDto,
   })
-  @ApiResponse({ status: 401, description: 'Invalid credentials' })
+  @ApiUnauthorizedResponse({ description: 'Invalid credentials' })
   login(@Body() dto: LoginDto) {
     return this.authService.login(dto);
   }
 
   @Post('forgot-password')
-  @ApiResponse({ status: 200, description: 'Code sent if email exists' })
+  @ApiOperation({ summary: 'Send reset code to email if account exists' })
+  @ApiBody({ type: ForgotPasswordDto })
+  @ApiOkResponse({ description: 'Code sent if email exists' })
+  @ApiBadRequestResponse({ description: 'Too many requests' })
   async forgotPassword(@Body() dto: ForgotPasswordDto) {
     await this.authService.forgotPassword(dto.email);
     return {
@@ -45,20 +59,23 @@ export class AuthController {
   }
 
   @Post('reset-password')
-  @ApiResponse({ status: 200, description: 'Password updated' })
-  @ApiResponse({ status: 400, description: 'Invalid or expired code' })
+  @ApiOperation({ summary: 'Reset password with verification code' })
+  @ApiBody({ type: ResetPasswordDto })
+  @ApiOkResponse({ description: 'Password updated' })
+  @ApiBadRequestResponse({ description: 'Invalid or expired code' })
   async resetPassword(@Body() dto: ResetPasswordDto) {
     await this.authService.resetPassword(dto.email, dto.code, dto.newPassword);
     return { success: true };
   }
 
   @Post('refresh')
-  @ApiResponse({
-    status: 200,
+  @ApiOperation({ summary: 'Refresh access token using refresh token' })
+  @ApiBody({ type: RefreshTokenDto })
+  @ApiOkResponse({
     description: 'Token refreshed',
     type: RefreshResponseDto,
   })
-  @ApiResponse({ status: 401, description: 'Invalid refresh token' })
+  @ApiUnauthorizedResponse({ description: 'Invalid refresh token' })
   refresh(@Body() dto: RefreshTokenDto) {
     return this.authService.refresh(dto.refreshToken);
   }
