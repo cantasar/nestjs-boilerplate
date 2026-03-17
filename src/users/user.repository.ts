@@ -8,12 +8,20 @@ export class UserRepository {
   constructor(@Inject(DRIZZLE) private readonly db: DrizzleDB) {}
 
   async findByEmail(email: string) {
-    const [row] = await this.db.select().from(users).where(eq(users.email, email)).limit(1);
+    const [row] = await this.db
+      .select()
+      .from(users)
+      .where(eq(users.email, email))
+      .limit(1);
     return row;
   }
 
   async findById(id: number) {
-    const [row] = await this.db.select().from(users).where(eq(users.id, id)).limit(1);
+    const [row] = await this.db
+      .select()
+      .from(users)
+      .where(eq(users.id, id))
+      .limit(1);
     return row;
   }
 
@@ -27,6 +35,9 @@ export class UserRepository {
   }
 
   async updatePassword(email: string, passwordHash: string) {
-    await this.db.update(users).set({ password: passwordHash }).where(eq(users.email, email));
+    await this.db
+      .update(users)
+      .set({ password: passwordHash })
+      .where(eq(users.email, email));
   }
 }

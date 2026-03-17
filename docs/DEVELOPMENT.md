@@ -4,13 +4,13 @@
 
 ## Tools
 
-| Tool | Command |
-|------|---------|
-| ESLint | `npm run lint` |
-| Prettier | `npm run format` |
-| Unit test | `npm run test` |
-| E2E test | `npm run test:e2e` |
-| Drizzle | `npm run db:generate`, `db:push`, `db:studio` |
+| Tool      | Command                                       |
+| --------- | --------------------------------------------- |
+| Oxlint    | `npm run lint`                                |
+| Oxfmt     | `npm run format`                              |
+| Unit test | `npm run test`                                |
+| E2E test  | `npm run test:e2e`                            |
+| Drizzle   | `npm run db:generate`, `db:push`, `db:studio` |
 
 Husky + lint-staged: automatic lint/format before commit.
 
@@ -23,13 +23,15 @@ Husky + lint-staged: automatic lint/format before commit.
 `src/database/schema/<entity>.schema.ts`
 
 ```ts
-import { pgTable, serial, varchar, integer } from 'drizzle-orm/pg-core';
-import { users } from './user.schema';
+import { pgTable, serial, varchar, integer } from "drizzle-orm/pg-core";
+import { users } from "./user.schema";
 
-export const todos = pgTable('todos', {
-  id: serial('id').primaryKey(),
-  userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
-  title: varchar('title', { length: 255 }).notNull(),
+export const todos = pgTable("todos", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  title: varchar("title", { length: 255 }).notNull(),
 });
 
 export type Todo = typeof todos.$inferSelect;
@@ -43,10 +45,10 @@ export type NewTodo = typeof todos.$inferInsert;
 `src/<module>/<entity>.repository.ts`
 
 ```ts
-import { Inject, Injectable } from '@nestjs/common';
-import { eq } from 'drizzle-orm';
-import { DRIZZLE, type DrizzleDB } from '../database/database.module';
-import { todos } from '../database/schema/todo.schema';
+import { Inject, Injectable } from "@nestjs/common";
+import { eq } from "drizzle-orm";
+import { DRIZZLE, type DrizzleDB } from "../database/database.module";
+import { todos } from "../database/schema/todo.schema";
 
 @Injectable()
 export class TodoRepository {

@@ -39,6 +39,8 @@ export class TodoRepository {
   }
 
   async delete(id: number, userId: number) {
-    await this.db.delete(todos).where(and(eq(todos.id, id), eq(todos.userId, userId)));
+    await this.db
+      .delete(todos)
+      .where(and(eq(todos.id, id), eq(todos.userId, userId)));
   }
 }

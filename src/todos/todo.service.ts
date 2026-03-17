@@ -1,4 +1,8 @@
-import { Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  InternalServerErrorException,
+  NotFoundException,
+} from '@nestjs/common';
 import { TodoRepository } from './todo.repository';
 
 @Injectable()
@@ -21,7 +25,11 @@ export class TodoService {
     return todo;
   }
 
-  async update(id: number, userId: number, data: { title?: string; completed?: boolean }) {
+  async update(
+    id: number,
+    userId: number,
+    data: { title?: string; completed?: boolean },
+  ) {
     const todo = await this.todoRepository.update(id, userId, data);
     if (!todo) throw new NotFoundException('Todo not found');
     return todo;

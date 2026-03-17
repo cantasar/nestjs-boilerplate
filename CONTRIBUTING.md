@@ -33,8 +33,8 @@ This document defines working rules and quality standards for contributors who w
 
 - The project must follow **TypeScript** and **NestJS** best practices.
 - Code style:
-  - Prettier is used for formatting.
-  - ESLint rules are accepted as valid for linting.
+  - Oxfmt is used for formatting.
+  - Oxlint rules are accepted as valid for linting.
 - Naming:
   - Modules `*.module.ts`, services `*.service.ts`, controllers `*.controller.ts`.
 - Separation of concerns:

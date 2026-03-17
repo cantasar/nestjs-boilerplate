@@ -14,14 +14,22 @@ export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   @Post('register')
-  @ApiResponse({ status: 201, description: 'Registration successful', type: AuthResponseDto })
+  @ApiResponse({
+    status: 201,
+    description: 'Registration successful',
+    type: AuthResponseDto,
+  })
   @ApiResponse({ status: 409, description: 'Email already in use' })
   register(@Body() dto: RegisterDto) {
     return this.authService.register(dto);
   }
 
   @Post('login')
-  @ApiResponse({ status: 200, description: 'Login successful', type: AuthResponseDto })
+  @ApiResponse({
+    status: 200,
+    description: 'Login successful',
+    type: AuthResponseDto,
+  })
   @ApiResponse({ status: 401, description: 'Invalid credentials' })
   login(@Body() dto: LoginDto) {
     return this.authService.login(dto);
@@ -31,7 +39,9 @@ export class AuthController {
   @ApiResponse({ status: 200, description: 'Code sent if email exists' })
   async forgotPassword(@Body() dto: ForgotPasswordDto) {
     await this.authService.forgotPassword(dto.email);
-    return { message: 'If the email exists, a verification code has been sent.' };
+    return {
+      message: 'If the email exists, a verification code has been sent.',
+    };
   }
 
   @Post('reset-password')
@@ -43,7 +53,11 @@ export class AuthController {
   }
 
   @Post('refresh')
-  @ApiResponse({ status: 200, description: 'Token refreshed', type: RefreshResponseDto })
+  @ApiResponse({
+    status: 200,
+    description: 'Token refreshed',
+    type: RefreshResponseDto,
+  })
   @ApiResponse({ status: 401, description: 'Invalid refresh token' })
   refresh(@Body() dto: RefreshTokenDto) {
     return this.authService.refresh(dto.refreshToken);

@@ -71,7 +71,10 @@ describe('TodoService', () => {
 
       const result = await service.create(1, 'New');
 
-      expect(mockRepository.create).toHaveBeenCalledWith({ userId: 1, title: 'New' });
+      expect(mockRepository.create).toHaveBeenCalledWith({
+        userId: 1,
+        title: 'New',
+      });
       expect(result).toEqual(todo);
     });
   });

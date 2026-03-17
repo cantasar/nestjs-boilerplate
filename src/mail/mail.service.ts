@@ -13,14 +13,17 @@ export class MailService {
   constructor(private readonly configService: ConfigService) {
     const url = this.configService.get<string>('ZEPTOMAIL_URL');
     const token = this.configService.get<string>('ZEPTOMAIL_TOKEN');
-    this.fromAddress = this.configService.get<string>('MAIL_FROM_ADDRESS') ?? null;
+    this.fromAddress =
+      this.configService.get<string>('MAIL_FROM_ADDRESS') ?? null;
     this.fromName = this.configService.get<string>('MAIL_FROM_NAME') ?? null;
     this.client = url && token ? new SendMailClient({ url, token }) : null;
   }
 
   async sendOtpEmail(to: string, otp: string): Promise<void> {
     if (!this.client || !this.fromAddress || !this.fromName) {
-      this.logger.warn('Mail not configured (ZEPTOMAIL_*, MAIL_FROM_*). OTP not sent.');
+      this.logger.warn(
+        'Mail not configured (ZEPTOMAIL_*, MAIL_FROM_*). OTP not sent.',
+      );
       return;
     }
     try {
