@@ -2,9 +2,9 @@ import { Inject, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
-import { DRIZZLE } from '../../db/drizzle.module';
-import type { DrizzleDB } from '../../db';
-import { users } from '../../db/schema';
+import { DRIZZLE } from '../../../core/db/drizzle.module';
+import type { DrizzleDB } from '../../../core/db';
+import { users } from '../../../core/db/schema';
 import { eq } from 'drizzle-orm';
 
 @Injectable()

@@ -5,8 +5,8 @@ import { JwtStrategy } from './strategies/jwt.strategy';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { ConfigModule, ConfigService } from '@nestjs/config';
-import { MailModule } from '../mail/mail.module';
-import { RedisModule } from '../redis/redis.module';
+import { MailModule } from '../../core/mail/mail.module';
+import { RedisModule } from '../../core/redis/redis.module';
 
 @Module({
   imports: [

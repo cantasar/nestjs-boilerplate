@@ -1,11 +1,11 @@
 import { Module } from '@nestjs/common';
-import { AuthModule } from './auth/auth.module';
-import { DrizzleModule } from './db/drizzle.module';
+import { AuthModule } from './modules/auth/auth.module';
+import { DrizzleModule } from './core/db/drizzle.module';
 import { ConfigModule } from '@nestjs/config';
 import { validateEnv } from './config/env.validation';
-import { MailModule } from './mail/mail.module';
+import { MailModule } from './core/mail/mail.module';
 import { LoggerModule } from 'nestjs-pino';
-import { RedisModule } from './redis/redis.module';
+import { RedisModule } from './core/redis/redis.module';
 
 @Module({
   imports: [

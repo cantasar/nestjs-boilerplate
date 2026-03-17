@@ -8,15 +8,15 @@ import {
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
-import { DRIZZLE } from '../db/drizzle.module';
-import type { DrizzleDB } from '../db';
-import { users } from '../db/schema';
+import { DRIZZLE } from '../../core/db/drizzle.module';
+import type { DrizzleDB } from '../../core/db';
+import { users } from '../../core/db/schema';
 import { eq } from 'drizzle-orm';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
-import { MailService } from '../mail/mail.service';
+import { MailService } from '../../core/mail/mail.service';
 import * as bcrypt from 'bcrypt';
 import type Redis from 'ioredis';
 
