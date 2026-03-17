@@ -24,7 +24,12 @@ export type DrizzleDB = ReturnType<typeof drizzle>;
           max: 10,
           idleTimeoutMillis: 30000,
         });
-        pool.on('error', (err) => poolLogger.error('Unexpected error on idle client', err instanceof Error ? err.stack : String(err)));
+        pool.on('error', (err) =>
+          poolLogger.error(
+            'Unexpected error on idle client',
+            err instanceof Error ? err.stack : String(err),
+          ),
+        );
         return {
           db: drizzle({ client: pool, schema }),
           pool,

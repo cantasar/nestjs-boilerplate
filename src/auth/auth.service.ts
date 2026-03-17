@@ -132,7 +132,9 @@ export class AuthService {
       const accessToken = this.jwtService.sign(
         { sub: user.id, email: user.email },
         {
-          expiresIn: this.configService.getOrThrow('JWT_EXPIRATION') as jwt.SignOptions['expiresIn'],
+          expiresIn: this.configService.getOrThrow(
+            'JWT_EXPIRATION',
+          ) as jwt.SignOptions['expiresIn'],
           secret: this.configService.getOrThrow<string>('JWT_SECRET'),
         },
       );
@@ -151,7 +153,9 @@ export class AuthService {
     };
     const refreshOptions = {
       ...signOptions,
-      expiresIn: this.configService.getOrThrow('JWT_REFRESH_EXPIRATION') as jwt.SignOptions['expiresIn'],
+      expiresIn: this.configService.getOrThrow(
+        'JWT_REFRESH_EXPIRATION',
+      ) as jwt.SignOptions['expiresIn'],
     };
 
     const [accessToken, refreshToken] = await Promise.all([
@@ -166,7 +170,15 @@ export class AuthService {
     await this.userRepository.updateRefreshToken(userId, hashedToken);
   }
 
-  private toSafeUser(user: { id: number; email: string; firstName: string | null; lastName: string | null; isActive: boolean; createdAt: Date; updatedAt: Date }) {
+  private toSafeUser(user: {
+    id: number;
+    email: string;
+    firstName: string | null;
+    lastName: string | null;
+    isActive: boolean;
+    createdAt: Date;
+    updatedAt: Date;
+  }) {
     return {
       id: user.id,
       email: user.email,

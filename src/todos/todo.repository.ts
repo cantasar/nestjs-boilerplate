@@ -8,7 +8,11 @@ export class TodoRepository {
   constructor(@Inject(DRIZZLE) private readonly db: DrizzleDB) {}
 
   async findByUserId(userId: number) {
-    return this.db.select().from(todos).where(eq(todos.userId, userId)).orderBy(desc(todos.createdAt));
+    return this.db
+      .select()
+      .from(todos)
+      .where(eq(todos.userId, userId))
+      .orderBy(desc(todos.createdAt));
   }
 
   async findById(id: number, userId: number) {

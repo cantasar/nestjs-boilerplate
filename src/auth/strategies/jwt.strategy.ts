@@ -23,7 +23,8 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
     const [user] = await this.db.select().from(users).where(eq(users.id, payload.sub)).limit(1);
 
     if (user) {
-      const { password: _, ...result } = user;
+      const { password, ...result } = user;
+      void password;
       return result;
     }
     return null;
