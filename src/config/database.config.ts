@@ -1,8 +1,8 @@
 import type { ConfigService } from '@nestjs/config';
 
 /**
- * DB connection URL – env.validation'daki varsayılanlar kullanılır.
- * Modülde fallback yok.
+ * DB connection URL – defaults from env.validation are used.
+ * No fallback in module.
  */
 export function getDatabaseUrl(config: ConfigService): string {
   const url = config.get<string>('DATABASE_URL');

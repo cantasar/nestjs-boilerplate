@@ -1,85 +1,85 @@
 # NestJS Boilerplate
 
-Backend projeleri için hazır NestJS şablonu. Auth, DB, Redis, Mail altyapısı dahildir.
+Ready-to-use NestJS template for backend projects. Auth, DB, Redis, and Mail infrastructure included.
 
-## Gereksinimler
+## Requirements
 
-- **Node.js** 20+ (`.nvmrc` ile uyumlu)
-- **PostgreSQL** (Docker veya lokal)
-- **Redis** (Docker veya lokal)
+- **Node.js** 20+ (compatible with `.nvmrc`)
+- **PostgreSQL** (Docker or local)
+- **Redis** (Docker or local)
 
-## Kurulum
+## Setup
 
 ```bash
-# Bağımlılıklar
+# Dependencies
 npm install
 
-# Ortam değişkenleri
+# Environment variables
 cp .env.example .env
-# .env dosyasını düzenleyin
+# Edit .env file
 
-# Veritabanı (opsiyonel - local dev için)
+# Database (optional - for local dev)
 docker compose up -d
 
-# Migration (Neon/Cloud SQL kullanıyorsanız DATABASE_URL ile)
+# Migration (use DATABASE_URL if using Neon/Cloud SQL)
 npm run db:push
 
-# Başlat
+# Start
 npm run start:dev
 ```
 
-## Ortam Değişkenleri
+## Environment Variables
 
-| Değişken | Zorunlu | Varsayılan | Açıklama |
-|----------|---------|------------|----------|
-| `JWT_SECRET` | **Evet** | - | JWT imzalama anahtarı |
-| `DATABASE_URL` | Hayır | - | PostgreSQL URL (yoksa HOST/PORT/USER/PASSWORD/NAME kullanılır) |
-| `DATABASE_HOST` | Hayır | localhost | |
-| `DATABASE_PORT` | Hayır | 5432 | |
-| `DATABASE_USER` | Hayır | postgres | |
-| `DATABASE_PASSWORD` | Hayır | '' | |
-| `DATABASE_NAME` | Hayır | app | |
-| `REDIS_URL` | Hayır | redis://localhost:6379 | |
-| `ZEPTOMAIL_URL` | Hayır | - | Mail (forgot-password için) |
-| `ZEPTOMAIL_TOKEN` | Hayır | - | |
-| `MAIL_FROM_ADDRESS` | Hayır | - | |
-| `MAIL_FROM_NAME` | Hayır | - | |
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `JWT_SECRET` | **Yes** | - | JWT signing key |
+| `DATABASE_URL` | No | - | PostgreSQL URL (otherwise HOST/PORT/USER/PASSWORD/NAME are used) |
+| `DATABASE_HOST` | No | localhost | |
+| `DATABASE_PORT` | No | 5432 | |
+| `DATABASE_USER` | No | postgres | |
+| `DATABASE_PASSWORD` | No | '' | |
+| `DATABASE_NAME` | No | app | |
+| `REDIS_URL` | No | redis://localhost:6379 | |
+| `ZEPTOMAIL_URL` | No | - | Mail (for forgot-password) |
+| `ZEPTOMAIL_TOKEN` | No | - | |
+| `MAIL_FROM_ADDRESS` | No | - | |
+| `MAIL_FROM_NAME` | No | - | |
 
-## Endpoint'ler
+## Endpoints
 
-| Endpoint | Açıklama |
-|----------|----------|
+| Endpoint | Description |
+|----------|-------------|
 | `GET /health` | Liveness (load balancer) |
-| `GET /health/ready` | Readiness (DB + Redis durumu) |
-| `POST /api/v1/auth/register` | Kayıt |
-| `POST /api/v1/auth/login` | Giriş |
-| `POST /api/v1/auth/refresh` | Token yenileme |
-| `GET /api/v1/todos` | Todo listesi (Bearer token) |
-| `POST /api/v1/todos` | Todo oluştur |
+| `GET /health/ready` | Readiness (DB + Redis status) |
+| `POST /api/v1/auth/register` | Register |
+| `POST /api/v1/auth/login` | Login |
+| `POST /api/v1/auth/refresh` | Token refresh |
+| `GET /api/v1/todos` | Todo list (Bearer token) |
+| `POST /api/v1/todos` | Create todo |
 
 **Swagger:** http://localhost:3000/docs
 
-## Komutlar
+## Commands
 
 ```bash
-npm run start:dev    # Geliştirme
+npm run start:dev    # Development
 npm run build        # Build
 npm run lint         # ESLint
 npm run format       # Prettier
 npm run test         # Unit test
 npm run test:e2e     # E2E test
-npm run db:generate  # Migration oluştur
-npm run db:push      # Schema'yı DB'ye uygula
+npm run db:generate  # Generate migration
+npm run db:push      # Apply schema to DB
 npm run db:studio    # Drizzle Studio
 ```
 
-## Proje Yapısı
+## Project Structure
 
 ```
 src/
 ├── auth/          # JWT auth, register, login, forgot/reset password
 ├── users/         # User repository
-├── todos/         # Örnek modül (silinebilir)
+├── todos/         # Example module (can be removed)
 ├── database/      # Drizzle schema + module
 ├── mail/          # ZeptoMail
 ├── redis/         # Redis client

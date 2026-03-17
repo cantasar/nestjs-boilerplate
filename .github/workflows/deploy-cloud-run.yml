@@ -1,8 +1,8 @@
 # Google Cloud Run deployment
-# Trigger: Manuel (workflow_dispatch) veya main push
-# paths-ignore: .md, config, docs değişikliklerinde deploy atlanır
-# Sadece manuel için: push bloğunu silin
-# Gerekli secrets: GCP_PROJECT_ID, GCP_SA_KEY
+# Trigger: Manual (workflow_dispatch) or main push
+# paths-ignore: deploy skipped for .md, config, docs changes
+# For manual only: remove push block
+# Required secrets: GCP_PROJECT_ID, GCP_SA_KEY
 
 name: Deploy to Cloud Run
 

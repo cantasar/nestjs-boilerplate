@@ -1,10 +1,10 @@
 # CI/CD – Google Cloud Run
 
-GitHub Actions ile otomatik deploy. Sadece kurulum adımları.
+Automatic deploy with GitHub Actions. Setup steps only.
 
 ---
 
-## Adım 1: Artifact Registry
+## Step 1: Artifact Registry
 
 ```bash
 gcloud artifacts repositories create cloud-run \
@@ -14,14 +14,14 @@ gcloud artifacts repositories create cloud-run \
 
 ---
 
-## Adım 2: Service Account
+## Step 2: Service Account
 
 ```bash
-# Oluştur
+# Create
 gcloud iam service-accounts create github-actions \
   --display-name="GitHub Actions"
 
-# Roller (PROJECT_ID'yi değiştir)
+# Roles (replace PROJECT_ID)
 PROJECT_ID=your-project-id
 
 gcloud projects add-iam-policy-binding $PROJECT_ID \
@@ -36,34 +36,34 @@ gcloud projects add-iam-policy-binding $PROJECT_ID \
   --member="serviceAccount:github-actions@${PROJECT_ID}.iam.gserviceaccount.com" \
   --role="roles/iam.serviceAccountUser"
 
-# Key oluştur
+# Create key
 gcloud iam service-accounts keys create key.json \
   --iam-account=github-actions@${PROJECT_ID}.iam.gserviceaccount.com
 ```
 
 ---
 
-## Adım 3: GitHub Secrets
+## Step 3: GitHub Secrets
 
 Repo → Settings → Secrets and variables → Actions → New repository secret
 
-| Secret | Değer |
+| Secret | Value |
 |--------|-------|
-| `GCP_PROJECT_ID` | GCP proje ID |
-| `GCP_SA_KEY` | `key.json` dosyasının tam içeriği |
+| `GCP_PROJECT_ID` | GCP project ID |
+| `GCP_SA_KEY` | Full contents of `key.json` file |
 
 ---
 
-## Adım 4: Deploy Tetikleme
+## Step 4: Deploy Trigger
 
-**Manuel:** Actions → Deploy to Cloud Run → Run workflow
+**Manual:** Actions → Deploy to Cloud Run → Run workflow
 
-**Otomatik:** `main` branch'e push (`.md`, `docs/`, config dosyaları hariç)
+**Automatic:** Push to `main` branch (skipped for `.md`, `docs/`, config file changes)
 
 ---
 
-## Workflow Dosyası
+## Workflow File
 
 `.github/workflows/deploy-cloud-run.yml`
 
-Sadece manuel deploy için: `push:` bloğunu sil.
+For manual deploy only: remove the `push:` block.

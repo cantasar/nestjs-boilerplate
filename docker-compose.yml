@@ -1,5 +1,5 @@
-# Opsiyonel: Sadece local geliştirme için (DB + Redis)
-# Cloud Run'da Neon/Supabase/Cloud SQL gibi managed DB kullanın
+# Optional: For local development only (DB + Redis)
+# Use managed DB like Neon/Supabase/Cloud SQL on Cloud Run
 
 version: '3.8'
 

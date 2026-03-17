@@ -1,22 +1,22 @@
-# Geliştirme Rehberi
+# Development Guide
 
 ---
 
-## Araçlar
+## Tools
 
-| Araç | Komut |
-|------|-------|
+| Tool | Command |
+|------|---------|
 | ESLint | `npm run lint` |
 | Prettier | `npm run format` |
 | Unit test | `npm run test` |
 | E2E test | `npm run test:e2e` |
 | Drizzle | `npm run db:generate`, `db:push`, `db:studio` |
 
-Husky + lint-staged: commit öncesi otomatik lint/format.
+Husky + lint-staged: automatic lint/format before commit.
 
 ---
 
-## Yeni Modül Oluşturma
+## Creating a New Module
 
 ### 1. Schema
 
@@ -58,7 +58,7 @@ export class TodoRepository {
 }
 ```
 
-### 3. DTO'lar
+### 3. DTOs
 
 `src/<module>/dto/create-<entity>.dto.ts`, `update-<entity>.dto.ts`
 
@@ -73,7 +73,7 @@ export class CreateTodoDto {
 
 ### 4. Service
 
-`src/<module>/<entity>.service.ts` – iş mantığı, repository inject
+`src/<module>/<entity>.service.ts` – business logic, repository inject
 
 ### 5. Controller
 
@@ -81,7 +81,7 @@ export class CreateTodoDto {
 
 ### 6. Module
 
-`src/<module>/<module>.module.ts` – AppModule'e ekle
+`src/<module>/<module>.module.ts` – add to AppModule
 
 ### 7. Migration
 
@@ -92,7 +92,7 @@ npm run db:push
 
 ---
 
-## Hızlı Referans
+## Quick Reference
 
 ```
 src/<module>/

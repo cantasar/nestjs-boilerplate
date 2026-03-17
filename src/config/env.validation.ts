@@ -1,8 +1,8 @@
 import { z } from 'zod';
 
 /**
- * Tüm env değişkenleri ve varsayılanları burada tanımlanır.
- * Modüller sadece ConfigService.getOrThrow kullanır – fallback yok.
+ * All env variables and defaults are defined here.
+ * Modules use ConfigService.getOrThrow only – no fallback.
  */
 const envSchema = z
   .object({

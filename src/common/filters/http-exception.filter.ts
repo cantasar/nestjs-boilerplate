@@ -9,9 +9,9 @@ import {
 import { Request, Response } from 'express';
 
 /**
- * Tüm hataları yakalar, tutarlı JSON response döner.
- * - HttpException: status + message kullanılır
- * - Diğer: 500 Internal Server Error
+ * Catches all errors, returns consistent JSON response.
+ * - HttpException: status + message are used
+ * - Others: 500 Internal Server Error
  * - 5xx: error log, 4xx: warn log
  */
 @Catch()
