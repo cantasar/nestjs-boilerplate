@@ -1,7 +1,8 @@
 process.env.DATABASE_URL =
   process.env.DATABASE_URL ??
   'postgres://postgres:postgres@localhost:5432/test';
-process.env.JWT_SECRET = process.env.JWT_SECRET ?? 'test-secret';
+process.env.JWT_SECRET =
+  process.env.JWT_SECRET ?? 'test-secret-for-e2e-scenarios';
 process.env.REDIS_URL = process.env.REDIS_URL ?? 'redis://localhost:6379';
 process.env.ZEPTOMAIL_URL =
   process.env.ZEPTOMAIL_URL ?? 'https://api.zeptomail.com/';
@@ -59,5 +60,27 @@ describe('App (e2e)', () => {
 
   it('/api (GET) returns 404', () => {
     return request(app.getHttpServer()).get('/api').expect(404);
+  });
+
+  it('/health (GET) returns liveness payload', async () => {
+    const response = await request(app.getHttpServer()).get('/health');
+
+    expect(response.status).toBe(200);
+    expect(response.body.status).toBe('ok');
+    expect(typeof response.body.timestamp).toBe('string');
+  });
+
+  it('/api/v1/auth/login (POST) validates payload', async () => {
+    const response = await request(app.getHttpServer())
+      .post('/api/v1/auth/login')
+      .send({ email: 'invalid-email' });
+
+    expect(response.status).toBe(400);
+    expect(response.body.message).toEqual(
+      expect.arrayContaining([
+        'email must be an email',
+        'password must be a string',
+      ]),
+    );
   });
 });

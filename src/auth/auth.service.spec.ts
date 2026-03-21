@@ -119,6 +119,37 @@ describe('AuthService', () => {
       );
       expect(mockUserRepository.create).not.toHaveBeenCalled();
     });
+
+    it('should normalize email before lookup and create', async () => {
+      const inputDto = {
+        email: '  Test@Example.COM ',
+        password: 'password123',
+      };
+      mockUserRepository.findByEmail.mockResolvedValue(undefined);
+      mockUserRepository.create.mockResolvedValue({
+        id: 1,
+        email: 'test@example.com',
+        firstName: null,
+        lastName: null,
+        isActive: true,
+        password: 'hashed',
+        refreshToken: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+      mockUserRepository.updateRefreshToken.mockResolvedValue(undefined);
+
+      await service.register(inputDto);
+
+      expect(mockUserRepository.findByEmail).toHaveBeenCalledWith(
+        'test@example.com',
+      );
+      expect(mockUserRepository.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          email: 'test@example.com',
+        }),
+      );
+    });
   });
 
   describe('login', () => {
@@ -177,6 +208,35 @@ describe('AuthService', () => {
       await expect(
         service.resetPassword('test@example.com', 'wrong-code', 'newpass'),
       ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should update password and revoke refresh token when code is valid', async () => {
+      mockRedisService.get.mockResolvedValue('123456');
+      mockUserRepository.findByEmail.mockResolvedValue({
+        id: 3,
+        email: 'test@example.com',
+      });
+      mockUserRepository.updatePassword.mockResolvedValue(undefined);
+      mockUserRepository.updateRefreshToken.mockResolvedValue(undefined);
+      mockRedisService.del.mockResolvedValue(1);
+
+      await service.resetPassword(
+        ' Test@Example.COM ',
+        '123456',
+        'newpassword',
+      );
+
+      expect(mockUserRepository.findByEmail).toHaveBeenCalledWith(
+        'test@example.com',
+      );
+      expect(mockUserRepository.updatePassword).toHaveBeenCalledWith(
+        'test@example.com',
+        'hashed',
+      );
+      expect(mockUserRepository.updateRefreshToken).toHaveBeenCalledWith(
+        3,
+        null,
+      );
     });
   });
 });

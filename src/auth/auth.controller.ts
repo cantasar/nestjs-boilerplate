@@ -17,6 +17,8 @@ import { ResetPasswordDto } from './dto/reset-password.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { AuthResponseDto } from './dto/auth-response.dto';
 import { RefreshResponseDto } from './dto/refresh-response.dto';
+import { ForgotPasswordResponseDto } from './dto/forgot-password-response.dto';
+import { ResetPasswordResponseDto } from './dto/reset-password-response.dto';
 
 @ApiTags('Auth')
 @Controller({ path: 'auth', version: '1' })
@@ -50,11 +52,14 @@ export class AuthController {
   @Post('forgot-password')
   @ApiOperation({ summary: 'Send reset code to email if account exists' })
   @ApiBody({ type: ForgotPasswordDto })
-  @ApiOkResponse({ description: 'Code sent if email exists' })
+  @ApiOkResponse({
+    description: 'Code sent if email exists',
+    type: ForgotPasswordResponseDto,
+  })
   @ApiBadRequestResponse({ description: 'Too many requests' })
-  async forgotPassword(@Body() dto: ForgotPasswordDto): Promise<{
-    message: string;
-  }> {
+  async forgotPassword(
+    @Body() dto: ForgotPasswordDto,
+  ): Promise<ForgotPasswordResponseDto> {
     await this.authService.forgotPassword(dto.email);
     return {
       message: 'If the email exists, a verification code has been sent.',
@@ -64,11 +69,14 @@ export class AuthController {
   @Post('reset-password')
   @ApiOperation({ summary: 'Reset password with verification code' })
   @ApiBody({ type: ResetPasswordDto })
-  @ApiOkResponse({ description: 'Password updated' })
+  @ApiOkResponse({
+    description: 'Password updated',
+    type: ResetPasswordResponseDto,
+  })
   @ApiBadRequestResponse({ description: 'Invalid or expired code' })
-  async resetPassword(@Body() dto: ResetPasswordDto): Promise<{
-    success: boolean;
-  }> {
+  async resetPassword(
+    @Body() dto: ResetPasswordDto,
+  ): Promise<ResetPasswordResponseDto> {
     await this.authService.resetPassword(dto.email, dto.code, dto.newPassword);
     return { success: true };
   }

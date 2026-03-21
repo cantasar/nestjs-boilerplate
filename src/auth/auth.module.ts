@@ -5,7 +5,6 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
 import { JwtStrategy } from './strategies/jwt.strategy';
-import { DatabaseModule } from '../database/database.module';
 import { MailModule } from '../mail/mail.module';
 import { RedisModule } from '../redis/redis.module';
 import { UsersModule } from '../users/users.module';
@@ -21,7 +20,6 @@ import { UsersModule } from '../users/users.module';
       }),
       inject: [ConfigService],
     }),
-    DatabaseModule,
     MailModule,
     RedisModule,
     UsersModule,
