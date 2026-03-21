@@ -3,7 +3,8 @@ import { APP_GUARD } from '@nestjs/core';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { LoggerModule } from 'nestjs-pino';
-import { validateEnv } from './config/env.validation';
+import { validateEnv } from './common/config/env.validation';
+import { CommonModule } from './common/common.module';
 import { DatabaseModule } from './database/database.module';
 import { RedisModule } from './redis/redis.module';
 import { AuthModule } from './auth/auth.module';
@@ -35,6 +36,7 @@ import { HealthModule } from './health/health.module';
       ],
       inject: [ConfigService],
     }),
+    CommonModule,
     DatabaseModule,
     RedisModule,
     AuthModule,

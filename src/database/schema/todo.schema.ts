@@ -22,6 +22,3 @@ export const todos = pgTable('todos', {
     .$onUpdate(() => new Date())
     .notNull(),
 });
-
-export type Todo = typeof todos.$inferSelect;
-export type NewTodo = typeof todos.$inferInsert;

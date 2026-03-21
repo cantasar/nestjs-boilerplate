@@ -9,13 +9,11 @@ import { ConfigService } from '@nestjs/config';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { Pool } from 'pg';
 import * as schema from './schema';
-import { getDatabaseUrl } from '../config/database.config';
+import { getDatabaseUrl } from '../common/config/database.config';
+import { DATABASE_TOKENS } from './database.tokens';
+import type { DrizzleDB } from './database.types';
 
 const poolLogger = new Logger('DatabasePool');
-
-export const DRIZZLE = Symbol('DRIZZLE');
-export const DRIZZLE_POOL = Symbol('DRIZZLE_POOL');
-export type DrizzleDB = ReturnType<typeof drizzle>;
 
 @Global()
 @Module({
@@ -43,22 +41,24 @@ export type DrizzleDB = ReturnType<typeof drizzle>;
       },
     },
     {
-      provide: DRIZZLE,
+      provide: DATABASE_TOKENS.DRIZZLE,
       inject: ['DRIZZLE_CONFIG'],
       useFactory: (config: { db: DrizzleDB; pool: Pool }) => config.db,
     },
     {
-      provide: DRIZZLE_POOL,
+      provide: DATABASE_TOKENS.DRIZZLE_POOL,
       inject: ['DRIZZLE_CONFIG'],
       useFactory: (config: { db: DrizzleDB; pool: Pool }) => config.pool,
     },
   ],
-  exports: [DRIZZLE, DRIZZLE_POOL],
+  exports: [DATABASE_TOKENS.DRIZZLE, DATABASE_TOKENS.DRIZZLE_POOL],
 })
 export class DatabaseModule implements OnApplicationShutdown {
-  constructor(@Inject(DRIZZLE_POOL) private readonly pool: Pool) {}
+  constructor(
+    @Inject(DATABASE_TOKENS.DRIZZLE_POOL) private readonly pool: Pool,
+  ) {}
 
-  async onApplicationShutdown() {
+  async onApplicationShutdown(): Promise<void> {
     await this.pool.end();
   }
 }
