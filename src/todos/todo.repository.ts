@@ -6,20 +6,12 @@ import { todos } from '../database/schema/todo.schema';
 import type { Todo } from '../database/types/todo-select.type';
 import type { NewTodo } from '../database/types/todo-insert.type';
 
-/**
- * Todo persistence operations.
- */
 @Injectable()
 export class TodoRepository {
   constructor(
     @Inject(DATABASE_TOKENS.DRIZZLE) private readonly db: DrizzleDB,
   ) {}
 
-  /**
-   * Lists todos by user id.
-   * @param userId - User id
-   * @returns Todo list
-   */
   async findByUserId(userId: number): Promise<Todo[]> {
     return this.db
       .select()
@@ -28,12 +20,6 @@ export class TodoRepository {
       .orderBy(desc(todos.createdAt));
   }
 
-  /**
-   * Finds todo by id and user id.
-   * @param id - Todo id
-   * @param userId - User id
-   * @returns Todo or undefined
-   */
   async findById(id: number, userId: number): Promise<Todo | undefined> {
     const [row] = await this.db
       .select()
@@ -43,23 +29,11 @@ export class TodoRepository {
     return row;
   }
 
-  /**
-   * Creates a new todo.
-   * @param data - Todo insert data
-   * @returns Created todo or undefined
-   */
   async create(data: NewTodo): Promise<Todo | undefined> {
     const [row] = await this.db.insert(todos).values(data).returning();
     return row;
   }
 
-  /**
-   * Updates a todo.
-   * @param id - Todo id
-   * @param userId - User id
-   * @param data - Partial update data
-   * @returns Updated todo or undefined
-   */
   async update(
     id: number,
     userId: number,
@@ -73,11 +47,6 @@ export class TodoRepository {
     return row;
   }
 
-  /**
-   * Deletes a todo.
-   * @param id - Todo id
-   * @param userId - User id
-   */
   async delete(id: number, userId: number): Promise<void> {
     await this.db
       .delete(todos)

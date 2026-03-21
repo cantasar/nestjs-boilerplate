@@ -1,10 +1,5 @@
 import type { ConfigService } from '@nestjs/config';
 
-/**
- * Resolves PostgreSQL connection URL from ConfigService.
- * @param config - Nest ConfigService
- * @returns Connection string
- */
 export function getDatabaseUrl(config: ConfigService): string {
   const url = config.get<string>('DATABASE_URL');
   if (url?.startsWith('postgres')) return url;

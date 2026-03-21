@@ -1,6 +1,5 @@
 import type { OtpTemplateParams } from './otp-template-params';
 
-/** Builds HTML email body for OTP verification. */
 export function getOtpEmailTemplate({ otp }: OtpTemplateParams): string {
   return `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9;">

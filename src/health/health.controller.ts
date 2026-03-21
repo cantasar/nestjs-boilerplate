@@ -5,7 +5,6 @@ import { DATABASE_TOKENS } from '../database/database.tokens';
 import type { Pool } from 'pg';
 import { RedisService } from '../redis/redis.service';
 
-/** Health check endpoints for liveness and readiness (infra; omitted from OpenAPI). */
 @ApiExcludeController()
 @Controller('health')
 export class HealthController {

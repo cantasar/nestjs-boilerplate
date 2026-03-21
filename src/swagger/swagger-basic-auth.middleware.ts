@@ -1,10 +1,6 @@
 import { timingSafeEqual } from 'crypto';
 import type { NextFunction, Request, Response } from 'express';
 
-/**
- * HTTP Basic Auth for Swagger UI and OpenAPI JSON/YAML routes.
- * Uses timing-safe comparison for credentials.
- */
 export function createSwaggerBasicAuthMiddleware(
   expectedUser: string,
   expectedPassword: string,

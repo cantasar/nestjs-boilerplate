@@ -10,9 +10,6 @@ import Redis from 'ioredis';
 import { REDIS_CLIENT } from './redis.tokens';
 import { RedisService } from './redis.service';
 
-/**
- * Closes Redis on application shutdown to avoid connection leaks.
- */
 @Injectable()
 class RedisLifecycle implements OnModuleDestroy {
   constructor(@Inject(REDIS_CLIENT) private readonly client: Redis) {}
@@ -22,9 +19,6 @@ class RedisLifecycle implements OnModuleDestroy {
   }
 }
 
-/**
- * Global Redis module: single `ioredis` client from `REDIS_URL`.
- */
 @Global()
 @Module({
   providers: [

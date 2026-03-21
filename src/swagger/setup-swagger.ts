@@ -6,10 +6,6 @@ import { createSwaggerBasicAuthMiddleware } from './swagger-basic-auth.middlewar
 
 const SWAGGER_PATH = 'docs' as const;
 
-/**
- * Mounts Swagger UI and OpenAPI JSON/YAML. Returns false when disabled.
- * @throws When production env is missing SWAGGER_BASIC_AUTH credentials.
- */
 export function setupSwagger(
   app: INestApplication,
   configService: ConfigService,

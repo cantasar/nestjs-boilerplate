@@ -8,9 +8,6 @@ import {
 } from '@nestjs/common';
 import { Request, Response } from 'express';
 
-/**
- * Global exception filter for consistent HTTP error responses.
- */
 @Catch()
 export class HttpExceptionFilter implements ExceptionFilter {
   private readonly logger = new Logger(HttpExceptionFilter.name);

@@ -2,9 +2,6 @@ import { Inject, Injectable } from '@nestjs/common';
 import type Redis from 'ioredis';
 import { REDIS_CLIENT } from './redis.tokens';
 
-/**
- * Application-level Redis facade to keep low-level client usage centralized.
- */
 @Injectable()
 export class RedisService {
   constructor(@Inject(REDIS_CLIENT) private readonly client: Redis) {}

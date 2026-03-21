@@ -25,7 +25,6 @@ import { UpdateTodoDto } from './dto/update-todo.dto';
 import { TodoResponseDto } from './dto/todo-response.dto';
 import type { Todo } from '../database/types/todo-select.type';
 
-/** Todo CRUD endpoints. Requires JWT. */
 @ApiTags('Todos')
 @ApiBearerAuth()
 @UseGuards(JwtGuard)

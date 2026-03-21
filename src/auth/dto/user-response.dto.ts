@@ -1,6 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
 
-/** User data in API responses (no sensitive fields). */
 export class UserResponseDto {
   @ApiProperty()
   id: number;

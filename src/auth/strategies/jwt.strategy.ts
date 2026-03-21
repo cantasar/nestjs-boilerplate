@@ -8,7 +8,6 @@ import { users } from '../../database/schema/user.schema';
 import { eq } from 'drizzle-orm';
 import type { User } from '../../database/types/user-select.type';
 
-/** Passport JWT strategy: validates bearer token and loads user without password. */
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
   constructor(

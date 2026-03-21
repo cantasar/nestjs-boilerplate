@@ -1,6 +1,5 @@
 import { z } from 'zod';
 
-/** Zod schema for application environment variables. */
 export const envSchema = z
   .object({
     NODE_ENV: z
@@ -25,11 +24,8 @@ export const envSchema = z
     RATE_LIMIT_TTL: z.coerce.number().int().positive().default(60000),
     RATE_LIMIT_MAX: z.coerce.number().int().positive().default(100),
     CORS_ORIGIN: z.string().optional(),
-    /** Set to `false` to disable OpenAPI UI entirely. */
     SWAGGER_ENABLED: z.enum(['true', 'false']).optional(),
-    /** HTTP Basic Auth user for `/api/docs` (required in production with password). */
     SWAGGER_BASIC_AUTH_USER: z.string().optional(),
-    /** HTTP Basic Auth password for `/api/docs` (required in production with user). */
     SWAGGER_BASIC_AUTH_PASSWORD: z.string().optional(),
   })
   .catchall(z.unknown());

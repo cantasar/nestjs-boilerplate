@@ -18,7 +18,6 @@ import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { AuthResponseDto } from './dto/auth-response.dto';
 import { RefreshResponseDto } from './dto/refresh-response.dto';
 
-/** Auth endpoints: register, login, password reset, token refresh. */
 @ApiTags('Auth')
 @Controller({ path: 'auth', version: '1' })
 export class AuthController {

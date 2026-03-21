@@ -1,4 +1,3 @@
-/** Auth-related constants: rate limits and OTP range. */
 export const AUTH_CONSTANTS = {
   FORGOT_PASSWORD_REQUESTS_LIMIT: 3,
   FORGOT_PASSWORD_WINDOW_SECONDS: 60,

@@ -15,7 +15,6 @@ import { MailService } from '../mail/mail.service';
 import { RedisService } from '../redis/redis.service';
 import { AUTH_CONSTANTS } from './auth.constants';
 
-/** Safe user shape for API responses (no password, refreshToken). */
 interface SafeUser {
   id: number;
   email: string;
@@ -26,19 +25,16 @@ interface SafeUser {
   updatedAt: Date;
 }
 
-/** Auth response with tokens and user. */
 interface AuthResponse {
   accessToken: string;
   refreshToken: string;
   user: SafeUser;
 }
 
-/** Refresh token response. */
 interface RefreshResponse {
   accessToken: string;
 }
 
-/** Register input DTO. */
 interface RegisterInput {
   email: string;
   password: string;
@@ -46,15 +42,11 @@ interface RegisterInput {
   lastName?: string;
 }
 
-/** Login input DTO. */
 interface LoginInput {
   email: string;
   password: string;
 }
 
-/**
- * Handles authentication: registration, login, password reset, token refresh.
- */
 @Injectable()
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
@@ -67,11 +59,6 @@ export class AuthService {
     private readonly mailService: MailService,
   ) {}
 
-  /**
-   * Registers a new user and returns tokens.
-   * @param dto - Registration data
-   * @returns Auth response with tokens and user
-   */
   async register(dto: RegisterInput): Promise<AuthResponse> {
     const { email, password, firstName, lastName } = dto;
     const existing = await this.userRepository.findByEmail(email);
@@ -94,11 +81,6 @@ export class AuthService {
     };
   }
 
-  /**
-   * Authenticates user and returns tokens.
-   * @param dto - Login credentials
-   * @returns Auth response with tokens and user
-   */
   async login(dto: LoginInput): Promise<AuthResponse> {
     const { email, password } = dto;
     const user = await this.userRepository.findByEmail(email);
@@ -115,10 +97,6 @@ export class AuthService {
     };
   }
 
-  /**
-   * Sends OTP to email if user exists. Rate-limited.
-   * @param email - User email
-   */
   async forgotPassword(email: string): Promise<void> {
     const user = await this.userRepository.findByEmail(email);
     if (!user) return;
@@ -151,12 +129,6 @@ export class AuthService {
     }
   }
 
-  /**
-   * Resets password using OTP code.
-   * @param email - User email
-   * @param code - OTP from email
-   * @param newPassword - New password
-   */
   async resetPassword(
     email: string,
     code: string,
@@ -172,11 +144,6 @@ export class AuthService {
     await this.redisService.del(key);
   }
 
-  /**
-   * Refreshes access token using refresh token.
-   * @param refreshToken - Valid refresh token
-   * @returns New access token
-   */
   async refresh(refreshToken: string): Promise<RefreshResponse> {
     try {
       const payload = this.jwtService.verify<{ sub: number; email: string }>(
