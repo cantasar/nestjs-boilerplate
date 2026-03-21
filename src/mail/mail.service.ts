@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { SendMailClient } from 'zeptomail';
-import { getOtpEmailTemplate } from './templates/otp.template';
+import { getOtpEmailTemplate } from './templates/otp-template';
 
 @Injectable()
 export class MailService {

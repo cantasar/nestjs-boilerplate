@@ -1,28 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
+import { UserResponseDto } from './user-response.dto';
 
-export class UserResponseDto {
-  @ApiProperty()
-  id: number;
-
-  @ApiProperty()
-  email: string;
-
-  @ApiProperty({ nullable: true })
-  firstName: string | null;
-
-  @ApiProperty({ nullable: true })
-  lastName: string | null;
-
-  @ApiProperty()
-  isActive: boolean;
-
-  @ApiProperty()
-  createdAt: Date;
-
-  @ApiProperty()
-  updatedAt: Date;
-}
-
+/** Auth response with tokens and user. */
 export class AuthResponseDto {
   @ApiProperty()
   accessToken: string;
@@ -32,9 +11,4 @@ export class AuthResponseDto {
 
   @ApiProperty({ type: UserResponseDto })
   user: UserResponseDto;
-}
-
-export class RefreshResponseDto {
-  @ApiProperty()
-  accessToken: string;
 }

@@ -36,25 +36,32 @@ describe('TodoService', () => {
 
   describe('findAll', () => {
     it('should return todos for user', async () => {
-      const userId = 1;
-      const todos = [{ id: 1, title: 'Test', userId, completed: false }];
-      mockRepository.findByUserId.mockResolvedValue(todos);
+      const inputUserId = 1;
+      const expectedTodos = [
+        { id: 1, title: 'Test', userId: inputUserId, completed: false },
+      ];
+      mockRepository.findByUserId.mockResolvedValue(expectedTodos);
 
-      const result = await service.findAll(userId);
+      const actualResult = await service.findAll(inputUserId);
 
-      expect(mockRepository.findByUserId).toHaveBeenCalledWith(userId);
-      expect(result).toEqual(todos);
+      expect(mockRepository.findByUserId).toHaveBeenCalledWith(inputUserId);
+      expect(actualResult).toEqual(expectedTodos);
     });
   });
 
   describe('findOne', () => {
     it('should return todo when found', async () => {
-      const todo = { id: 1, title: 'Test', userId: 1, completed: false };
-      mockRepository.findById.mockResolvedValue(todo);
+      const expectedTodo = {
+        id: 1,
+        title: 'Test',
+        userId: 1,
+        completed: false,
+      };
+      mockRepository.findById.mockResolvedValue(expectedTodo);
 
-      const result = await service.findOne(1, 1);
+      const actualResult = await service.findOne(1, 1);
 
-      expect(result).toEqual(todo);
+      expect(actualResult).toEqual(expectedTodo);
     });
 
     it('should throw NotFoundException when not found', async () => {
@@ -66,16 +73,47 @@ describe('TodoService', () => {
 
   describe('create', () => {
     it('should create and return todo', async () => {
-      const todo = { id: 1, title: 'New', userId: 1, completed: false };
-      mockRepository.create.mockResolvedValue(todo);
+      const expectedTodo = { id: 1, title: 'New', userId: 1, completed: false };
+      mockRepository.create.mockResolvedValue(expectedTodo);
 
-      const result = await service.create(1, 'New');
+      const actualResult = await service.create(1, 'New');
 
       expect(mockRepository.create).toHaveBeenCalledWith({
         userId: 1,
         title: 'New',
       });
-      expect(result).toEqual(todo);
+      expect(actualResult).toEqual(expectedTodo);
+    });
+  });
+
+  describe('update', () => {
+    it('should update and return todo', async () => {
+      const expectedTodo = {
+        id: 1,
+        title: 'Updated',
+        userId: 1,
+        completed: true,
+      };
+      mockRepository.update.mockResolvedValue(expectedTodo);
+
+      const actualResult = await service.update(1, 1, {
+        title: 'Updated',
+        completed: true,
+      });
+
+      expect(mockRepository.update).toHaveBeenCalledWith(1, 1, {
+        title: 'Updated',
+        completed: true,
+      });
+      expect(actualResult).toEqual(expectedTodo);
+    });
+
+    it('should throw NotFoundException when not found', async () => {
+      mockRepository.update.mockResolvedValue(undefined);
+
+      await expect(
+        service.update(999, 1, { title: 'Updated' }),
+      ).rejects.toThrow(NotFoundException);
     });
   });
 

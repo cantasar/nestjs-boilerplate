@@ -1,8 +1,7 @@
-export interface OtpTemplateParams {
-  otp: string;
-}
+import type { OtpTemplateParams } from './otp-template-params';
 
-export const getOtpEmailTemplate = ({ otp }: OtpTemplateParams): string => {
+/** Builds HTML email body for OTP verification. */
+export function getOtpEmailTemplate({ otp }: OtpTemplateParams): string {
   return `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9;">
       <div style="background-color: #ffffff; border-radius: 10px; padding: 30px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
@@ -19,4 +18,4 @@ export const getOtpEmailTemplate = ({ otp }: OtpTemplateParams): string => {
       </div>
     </div>
   `;
-};
+}

@@ -15,8 +15,10 @@ import { LoginDto } from './dto/login.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
-import { AuthResponseDto, RefreshResponseDto } from './dto/auth-response.dto';
+import { AuthResponseDto } from './dto/auth-response.dto';
+import { RefreshResponseDto } from './dto/refresh-response.dto';
 
+/** Auth endpoints: register, login, password reset, token refresh. */
 @ApiTags('Auth')
 @Controller({ path: 'auth', version: '1' })
 export class AuthController {
@@ -30,7 +32,7 @@ export class AuthController {
     type: AuthResponseDto,
   })
   @ApiConflictResponse({ description: 'Email already in use' })
-  register(@Body() dto: RegisterDto) {
+  register(@Body() dto: RegisterDto): Promise<AuthResponseDto> {
     return this.authService.register(dto);
   }
 
@@ -42,7 +44,7 @@ export class AuthController {
     type: AuthResponseDto,
   })
   @ApiUnauthorizedResponse({ description: 'Invalid credentials' })
-  login(@Body() dto: LoginDto) {
+  login(@Body() dto: LoginDto): Promise<AuthResponseDto> {
     return this.authService.login(dto);
   }
 
@@ -51,7 +53,9 @@ export class AuthController {
   @ApiBody({ type: ForgotPasswordDto })
   @ApiOkResponse({ description: 'Code sent if email exists' })
   @ApiBadRequestResponse({ description: 'Too many requests' })
-  async forgotPassword(@Body() dto: ForgotPasswordDto) {
+  async forgotPassword(@Body() dto: ForgotPasswordDto): Promise<{
+    message: string;
+  }> {
     await this.authService.forgotPassword(dto.email);
     return {
       message: 'If the email exists, a verification code has been sent.',
@@ -63,7 +67,9 @@ export class AuthController {
   @ApiBody({ type: ResetPasswordDto })
   @ApiOkResponse({ description: 'Password updated' })
   @ApiBadRequestResponse({ description: 'Invalid or expired code' })
-  async resetPassword(@Body() dto: ResetPasswordDto) {
+  async resetPassword(@Body() dto: ResetPasswordDto): Promise<{
+    success: boolean;
+  }> {
     await this.authService.resetPassword(dto.email, dto.code, dto.newPassword);
     return { success: true };
   }
@@ -76,7 +82,7 @@ export class AuthController {
     type: RefreshResponseDto,
   })
   @ApiUnauthorizedResponse({ description: 'Invalid refresh token' })
-  refresh(@Body() dto: RefreshTokenDto) {
+  refresh(@Body() dto: RefreshTokenDto): Promise<RefreshResponseDto> {
     return this.authService.refresh(dto.refreshToken);
   }
 }
