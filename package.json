@@ -2,8 +2,10 @@
   "name": "nestjs-boilerplate",
   "version": "0.0.1",
   "private": false,
+  "packageManager": "pnpm@9.15.9",
   "engines": {
-    "node": ">=22"
+    "node": ">=22",
+    "pnpm": ">=9"
   },
   "license": "UNLICENSED",
   "scripts": {
@@ -11,11 +13,11 @@
     "format": "oxfmt src test",
     "format:check": "oxfmt --check src test",
     "prepare": "husky",
-    "db:generate": "drizzle-kit generate",
-    "db:migrate": "drizzle-kit migrate",
-    "db:pull": "drizzle-kit pull",
-    "db:push": "drizzle-kit push",
-    "db:studio": "drizzle-kit studio",
+    "db:generate": "drizzle-kit generate --config=drizzle.config.ts",
+    "db:migrate": "drizzle-kit migrate --config=drizzle.config.ts",
+    "db:pull": "drizzle-kit pull --config=drizzle.config.ts",
+    "db:push": "drizzle-kit push --config=drizzle.config.ts",
+    "db:studio": "drizzle-kit studio --config=drizzle.config.ts",
     "start": "nest start",
     "start:dev": "nest start --watch",
     "start:debug": "nest start --debug --watch",
@@ -106,5 +108,11 @@
     ],
     "coverageDirectory": "../coverage",
     "testEnvironment": "node"
+  },
+  "lint-staged": {
+    "*.{ts,tsx,mjs,cjs}": [
+      "oxlint --fix",
+      "oxfmt"
+    ]
   }
 }

@@ -3,6 +3,9 @@
 /node_modules
 /build
 
+# Prefer pnpm (lockfile: pnpm-lock.yaml)
+package-lock.json
+
 # Logs
 logs
 *.log
