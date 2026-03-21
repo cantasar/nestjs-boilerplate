@@ -6,13 +6,11 @@
 
 | Tool      | Command                                       |
 | --------- | --------------------------------------------- |
-| Oxlint    | `npm run lint`                                |
-| Oxfmt     | `npm run format`                              |
-| Unit test | `npm run test`                                |
-| E2E test  | `npm run test:e2e`                            |
-| Drizzle   | `npm run db:generate`, `db:push`, `db:studio` |
-
-Husky + lint-staged: automatic lint/format before commit.
+| Oxlint    | `pnpm run lint`                               |
+| Oxfmt     | `pnpm run format`                             |
+| Unit test | `pnpm run test`                               |
+| E2E test  | `pnpm run test:e2e`                           |
+| Drizzle   | `pnpm run db:generate`, `db:migrate`, `db:push`, `db:studio` |
 
 ---
 
@@ -34,11 +32,12 @@ export const todos = pgTable("todos", {
   title: varchar("title", { length: 255 }).notNull(),
 });
 
-export type Todo = typeof todos.$inferSelect;
-export type NewTodo = typeof todos.$inferInsert;
 ```
 
-`src/database/schema/index.ts` → `export * from './todo.schema';`
+Inferred row/insert types live under **`src/database/types/`** (one export per file), e.g. `todo-select.type.ts`, `todo-insert.type.ts`, importing table definitions from `../schema/`.
+
+- `src/database/schema/index.ts` → re-export table definitions only.
+- `src/database/types/index.ts` → re-export inferred types.
 
 ### 2. Repository
 
@@ -47,12 +46,15 @@ export type NewTodo = typeof todos.$inferInsert;
 ```ts
 import { Inject, Injectable } from "@nestjs/common";
 import { eq } from "drizzle-orm";
-import { DRIZZLE, type DrizzleDB } from "../database/database.module";
+import { DATABASE_TOKENS } from "../database/database.tokens";
+import type { DrizzleDB } from "../database/database.types";
 import { todos } from "../database/schema/todo.schema";
 
 @Injectable()
 export class TodoRepository {
-  constructor(@Inject(DRIZZLE) private readonly db: DrizzleDB) {}
+  constructor(
+    @Inject(DATABASE_TOKENS.DRIZZLE) private readonly db: DrizzleDB,
+  ) {}
 
   async findByUserId(userId: number) {
     return this.db.select().from(todos).where(eq(todos.userId, userId));
@@ -88,8 +90,8 @@ export class CreateTodoDto {
 ### 7. Migration
 
 ```bash
-npm run db:generate
-npm run db:push
+pnpm run db:generate
+pnpm run db:migrate
 ```
 
 ---
@@ -108,4 +110,31 @@ src/<module>/
 
 src/database/schema/
   <entity>.schema.ts
+src/database/types/
+  <entity>-select.type.ts
+  <entity>-insert.type.ts
+```
+
+---
+
+## Redis Usage
+
+Use `RedisService` in application services instead of injecting raw client directly.
+
+```ts
+import { Injectable } from '@nestjs/common';
+import { RedisService } from '../redis/redis.service';
+
+@Injectable()
+export class ExampleService {
+  constructor(private readonly redisService: RedisService) {}
+
+  async saveToken(userId: number, token: string): Promise<void> {
+    await this.redisService.setWithExpirySeconds(`token:${userId}`, token, 300);
+  }
+
+  async readToken(userId: number): Promise<string | null> {
+    return this.redisService.get(`token:${userId}`);
+  }
+}
 ```

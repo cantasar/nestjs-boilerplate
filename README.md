@@ -10,9 +10,11 @@ Ready-to-use NestJS template for backend projects. Auth, DB, Redis, and Mail inf
 
 ## Setup
 
+[pnpm](https://pnpm.io) is the package manager (`corepack enable` uses the version from `packageManager` in `package.json`).
+
 ```bash
 # Dependencies
-npm install
+pnpm install
 
 # Environment variables
 cp .env.example .env
@@ -22,10 +24,10 @@ cp .env.example .env
 docker compose up -d
 
 # Migration (use DATABASE_URL if using Neon/Cloud SQL)
-npm run db:push
+pnpm run db:push
 
 # Start
-npm run start:dev
+pnpm run start:dev
 ```
 
 ## Environment Variables
@@ -44,6 +46,8 @@ npm run start:dev
 | `ZEPTOMAIL_TOKEN`   | No       | -                      |                                                                  |
 | `MAIL_FROM_ADDRESS` | No       | -                      |                                                                  |
 | `MAIL_FROM_NAME`    | No       | -                      |                                                                  |
+| `SWAGGER_ENABLED`   | No       | (on)                   | Set `false` to disable OpenAPI UI                                |
+| `SWAGGER_BASIC_AUTH_USER` / `SWAGGER_BASIC_AUTH_PASSWORD` | **Yes in production** | - | HTTP Basic for `/api/docs` (browser login before Swagger UI) |
 
 ## Endpoints
 
@@ -57,20 +61,22 @@ npm run start:dev
 | `GET /api/v1/todos`          | Todo list (Bearer token)      |
 | `POST /api/v1/todos`         | Create todo                   |
 
-**Swagger:** http://localhost:3000/docs
+**Swagger UI:** http://localhost:3000/api/docs · **OpenAPI JSON:** http://localhost:3000/api/docs/openapi.json  
+In **production**, set `SWAGGER_BASIC_AUTH_USER` and `SWAGGER_BASIC_AUTH_PASSWORD` (required). Optionally set the same in development to protect docs locally.
 
 ## Commands
 
 ```bash
-npm run start:dev    # Development
-npm run build        # Build
-npm run lint         # Oxlint
-npm run format       # Oxfmt
-npm run test         # Unit test
-npm run test:e2e     # E2E test
-npm run db:generate  # Generate migration
-npm run db:push      # Apply schema to DB
-npm run db:studio    # Drizzle Studio
+pnpm run start:dev    # Development
+pnpm run build        # Build
+pnpm run lint         # Oxlint
+pnpm run format       # Oxfmt
+pnpm run test         # Unit test
+pnpm run test:e2e     # E2E test
+pnpm run db:generate  # Generate migration files to ./drizzle
+pnpm run db:migrate   # Apply generated migrations
+pnpm run db:push      # Apply schema to DB
+pnpm run db:studio    # Drizzle Studio
 ```
 
 ## Project Structure
@@ -82,8 +88,8 @@ src/
 ├── todos/         # Example module (can be removed)
 ├── database/      # Drizzle schema + module
 ├── mail/          # ZeptoMail
-├── redis/         # Redis client
+├── redis/         # Redis module + RedisService facade
 ├── health/        # Health check
 ├── common/        # Guards, filters, decorators
-└── config/        # Env validation
+└── common/config/ # Env validation
 ```

@@ -78,7 +78,7 @@ Example:
 - `.env.example` must be kept up to date.
 - When adding a new environment variable:
   - Add an example value to `.env.example`,
-  - Add validation rule to the `src/config/env.validation.ts` schema.
+  - Add validation rule to the `src/common/config/env.validation.ts` schema (and `env.schema.ts` if adding fields).
 
 ## 8) Database and Migration
 
