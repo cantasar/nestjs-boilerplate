@@ -19,6 +19,8 @@ import { AuthResponseDto } from './dto/auth-response.dto';
 import { RefreshResponseDto } from './dto/refresh-response.dto';
 import { ForgotPasswordResponseDto } from './dto/forgot-password-response.dto';
 import { ResetPasswordResponseDto } from './dto/reset-password-response.dto';
+import { OAuthTokenDto } from './dto/oauth-token.dto';
+import { AppleAuthDto } from './dto/apple-auth.dto';
 
 @ApiTags('Auth')
 @Controller({ path: 'auth', version: '1' })
@@ -47,6 +49,28 @@ export class AuthController {
   @ApiUnauthorizedResponse({ description: 'Invalid credentials' })
   login(@Body() dto: LoginDto): Promise<AuthResponseDto> {
     return this.authService.login(dto);
+  }
+
+  @Post('google')
+  @ApiOperation({ summary: 'Sign in with Google ID token' })
+  @ApiBody({ type: OAuthTokenDto })
+  @ApiOkResponse({ description: 'Login successful', type: AuthResponseDto })
+  @ApiUnauthorizedResponse({ description: 'Invalid token' })
+  async googleLogin(@Body() dto: OAuthTokenDto): Promise<AuthResponseDto> {
+    return this.authService.googleLogin(dto.idToken);
+  }
+
+  @Post('apple')
+  @ApiOperation({ summary: 'Sign in with Apple ID token' })
+  @ApiBody({ type: AppleAuthDto })
+  @ApiOkResponse({ description: 'Login successful', type: AuthResponseDto })
+  @ApiUnauthorizedResponse({ description: 'Invalid token' })
+  async appleLogin(@Body() dto: AppleAuthDto): Promise<AuthResponseDto> {
+    return this.authService.appleLogin(
+      dto.idToken,
+      dto.firstName,
+      dto.lastName,
+    );
   }
 
   @Post('forgot-password')

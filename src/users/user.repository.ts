@@ -1,10 +1,15 @@
-import { Inject, Injectable } from '@nestjs/common';
+import {
+  Inject,
+  Injectable,
+  InternalServerErrorException,
+} from '@nestjs/common';
 import { eq } from 'drizzle-orm';
 import { DATABASE_TOKENS } from '../database/database.tokens';
 import type { DrizzleDB } from '../database/database.types';
 import { users } from '../database/schema/user.schema';
 import type { User } from '../database/types/user-select.type';
 import type { NewUser } from '../database/types/user-insert.type';
+import { UpsertOAuthUser } from '../database/types';
 
 @Injectable()
 export class UserRepository {
@@ -33,6 +38,31 @@ export class UserRepository {
   async create(data: NewUser): Promise<User | undefined> {
     const [row] = await this.db.insert(users).values(data).returning();
     return row;
+  }
+
+  async upsertOAuthUser(data: UpsertOAuthUser): Promise<User> {
+    // On email conflict, we update OAuth fields — this implicitly links an
+    // existing password-based account to the OAuth provider. Names are only
+    // updated when present (Apple only sends them on the very first sign-in).
+    const [user] = await this.db
+      .insert(users)
+      .values(data)
+      .onConflictDoUpdate({
+        target: users.email,
+        set: {
+          provider: data.provider,
+          providerId: data.providerId,
+          picture: data.picture,
+          emailVerified: true,
+          ...(data.firstName && { firstName: data.firstName }),
+          ...(data.lastName && { lastName: data.lastName }),
+        },
+      })
+      .returning();
+
+    if (!user) throw new InternalServerErrorException('Failed to create user');
+
+    return user;
   }
 
   async updateRefreshToken(

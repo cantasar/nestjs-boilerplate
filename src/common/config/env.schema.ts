@@ -27,5 +27,7 @@ export const envSchema = z
     SWAGGER_ENABLED: z.enum(['true', 'false']).optional(),
     SWAGGER_BASIC_AUTH_USER: z.string().optional(),
     SWAGGER_BASIC_AUTH_PASSWORD: z.string().optional(),
+    GOOGLE_CLIENT_ID: z.string().optional(),
+    APPLE_BUNDLE_ID: z.string().optional(),
   })
   .catchall(z.unknown());

@@ -15,6 +15,10 @@ import { UserRepository } from '../users/user.repository';
 import { MailService } from '../mail/mail.service';
 import { RedisService } from '../redis/redis.service';
 import { AUTH_CONSTANTS } from './auth.constants';
+import { UpsertOAuthUser } from '../database/types';
+import { OAuth2Client } from 'google-auth-library';
+import { AuthProvider } from '../users/enums/auth-provider.enum';
+import appleSignin from 'apple-signin-auth';
 
 interface SafeUser {
   id: number;
@@ -56,6 +60,7 @@ interface LoginInput {
 @Injectable()
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
+  private googleClient: OAuth2Client | null = null;
 
   constructor(
     private readonly userRepository: UserRepository,
@@ -95,6 +100,8 @@ export class AuthService {
     const user = await this.userRepository.findByEmail(email);
     if (!user) throw new UnauthorizedException('Invalid credentials');
     if (!user.isActive) throw new UnauthorizedException('User is not active');
+    if (!user.password)
+      throw new UnauthorizedException('This account uses social login');
     const isPasswordValid = await bcrypt.compare(dto.password, user.password);
     if (!isPasswordValid)
       throw new UnauthorizedException('Invalid credentials');
@@ -105,6 +112,56 @@ export class AuthService {
       refreshToken: tokens.refreshToken,
       user: this.toSafeUser(user),
     };
+  }
+
+  async googleLogin(idToken: string): Promise<AuthResponse> {
+    const clientId = this.configService.get<string>('GOOGLE_CLIENT_ID');
+    if (!clientId)
+      throw new BadRequestException('Google login is not configured');
+    if (!this.googleClient) this.googleClient = new OAuth2Client(clientId);
+    const ticket = await this.googleClient.verifyIdToken({ idToken });
+    const payload = ticket.getPayload();
+    if (!payload?.email) throw new UnauthorizedException('Invalid Token');
+
+    const user: UpsertOAuthUser = {
+      email: payload.email,
+      firstName: payload.given_name,
+      lastName: payload.family_name,
+      picture: payload.picture,
+      provider: AuthProvider.GOOGLE,
+      providerId: payload.sub,
+      emailVerified: true,
+    };
+
+    return this.oauthLogin(user);
+  }
+
+  async appleLogin(
+    idToken: string,
+    firstName?: string,
+    lastName?: string,
+  ): Promise<AuthResponse> {
+    const bundleId = this.configService.get<string>('APPLE_BUNDLE_ID');
+    if (!bundleId)
+      throw new BadRequestException('Apple login is not configured');
+    const payload = await appleSignin.verifyIdToken(idToken, {
+      audience: bundleId,
+      ignoreExpiration: false,
+    });
+
+    if (!payload?.email) throw new UnauthorizedException('Invalid Token');
+
+    const user: UpsertOAuthUser = {
+      email: payload.email,
+      firstName,
+      lastName,
+      picture: null,
+      provider: AuthProvider.APPLE,
+      providerId: payload.sub,
+      emailVerified: true,
+    };
+
+    return this.oauthLogin(user);
   }
 
   async forgotPassword(rawEmail: string): Promise<void> {
@@ -239,6 +296,21 @@ export class AuthService {
       AUTH_CONSTANTS.BCRYPT_SALT_ROUNDS,
     );
     await this.userRepository.updateRefreshToken(userId, hashedToken);
+  }
+
+  private async oauthLogin(data: UpsertOAuthUser): Promise<AuthResponse> {
+    const normalizedData = {
+      ...data,
+      email: this.normalizeEmail(data.email),
+    };
+    const user = await this.userRepository.upsertOAuthUser(normalizedData);
+    const tokens = await this.generateTokens(user.id, user.email);
+    await this.updateRefreshToken(user.id, tokens.refreshToken);
+    return {
+      accessToken: tokens.accessToken,
+      refreshToken: tokens.refreshToken,
+      user: this.toSafeUser(user),
+    };
   }
 
   private normalizeEmail(email: string): string {
