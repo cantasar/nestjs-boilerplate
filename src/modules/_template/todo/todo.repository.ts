@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { eq, and, desc } from 'drizzle-orm';
+import { eq, and, desc, count } from 'drizzle-orm';
 import { DATABASE_TOKENS } from '../../shared/database/database.tokens';
 import type { DrizzleDB } from '../../shared/database/database.types';
 import { todos } from '../../shared/database/schema/todo.schema';
@@ -18,6 +18,28 @@ export class TodoRepository {
       .from(todos)
       .where(eq(todos.userId, userId))
       .orderBy(desc(todos.createdAt));
+  }
+
+  async findPage(
+    userId: number,
+    page: number,
+    limit: number,
+  ): Promise<{ rows: Todo[]; totalCount: number }> {
+    const offset = (page - 1) * limit;
+    const [rows, [totals]] = await Promise.all([
+      this.db
+        .select()
+        .from(todos)
+        .where(eq(todos.userId, userId))
+        .orderBy(desc(todos.createdAt))
+        .limit(limit)
+        .offset(offset),
+      this.db
+        .select({ value: count() })
+        .from(todos)
+        .where(eq(todos.userId, userId)),
+    ]);
+    return { rows, totalCount: totals?.value ?? 0 };
   }
 
   async findById(id: number, userId: number): Promise<Todo | undefined> {
@@ -48,6 +70,7 @@ export class TodoRepository {
   }
 
   async delete(id: number, userId: number): Promise<void> {
+    // void-ok
     await this.db
       .delete(todos)
       .where(and(eq(todos.id, id), eq(todos.userId, userId)));

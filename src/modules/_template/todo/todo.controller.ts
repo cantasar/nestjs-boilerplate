@@ -9,6 +9,7 @@ import {
   ParseIntPipe,
   Patch,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import {
@@ -23,6 +24,12 @@ import { GetUser } from '../../shared/common/decorators/get-user.decorator';
 import { CreateTodoDto } from './dto/create-todo.dto';
 import { UpdateTodoDto } from './dto/update-todo.dto';
 import { TodoResponseDto } from './dto/todo-response.dto';
+import { PaginationQueryDto } from '../../shared/common/dto/pagination-query.dto';
+import {
+  ApiOkEnvelope,
+  ApiPaginatedEnvelope,
+} from '../../shared/common/decorators/api-common-responses.decorator';
+import type { Paginated } from '../../shared/common/types/paginated.type';
 import type { Todo } from '../../shared/database/types/todo-select.type';
 
 @ApiTags('Todos')
@@ -43,13 +50,19 @@ export class TodoController {
     return this.todoService.findAll(userId);
   }
 
+  @Get('paginated')
+  @ApiOperation({ summary: 'List todos (paginated, envelope demo)' })
+  @ApiPaginatedEnvelope(TodoResponseDto, { description: 'Paginated todo list' })
+  findPage(
+    @Query() query: PaginationQueryDto,
+    @GetUser('id') userId: number,
+  ): Promise<Paginated<Todo>> {
+    return this.todoService.findPage(userId, query.page, query.limit);
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'Get a todo by id' })
-  @ApiResponse({
-    status: 200,
-    description: 'Todo detail',
-    type: TodoResponseDto,
-  })
+  @ApiOkEnvelope(TodoResponseDto, { description: 'Todo detail' })
   @ApiResponse({ status: 404, description: 'Todo not found' })
   findOne(
     @Param('id', ParseIntPipe) id: number,
@@ -97,6 +110,7 @@ export class TodoController {
     @Param('id', ParseIntPipe) id: number,
     @GetUser('id') userId: number,
   ): Promise<void> {
+    // void-ok
     await this.todoService.remove(id, userId);
   }
 }
