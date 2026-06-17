@@ -4,7 +4,7 @@
   "private": false,
   "packageManager": "pnpm@9.15.9",
   "engines": {
-    "node": ">=22",
+    "node": ">=24",
     "pnpm": ">=9"
   },
   "license": "UNLICENSED",
@@ -28,7 +28,8 @@
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
-    "test:e2e": "jest --config ./test/jest-e2e.json"
+    "test:e2e": "jest --config ./test/jest-e2e.json",
+    "docs:generate": "node scripts/generate-api-docs.mjs"
   },
   "dependencies": {
     "@nestjs/common": "^11.1.17",
@@ -59,6 +60,8 @@
     "zod": "^3.25.76"
   },
   "devDependencies": {
+    "@commitlint/cli": "^19.6.1",
+    "@commitlint/config-conventional": "^19.6.0",
     "@nestjs/cli": "^11.0.16",
     "@nestjs/schematics": "^11.0.9",
     "@nestjs/testing": "^11.1.17",
