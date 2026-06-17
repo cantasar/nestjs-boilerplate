@@ -182,6 +182,7 @@ Every JSON response from a versioned (`/api/v1`) route is a **single, uniform en
 - **Constants live in `constants/<x>.constants.ts`** (or a feature-root `<feature>.constants.ts` when small). No magic literals scattered across services.
 - **Mappers are pure** (`mappers/<x>.mapper.ts`): entity → DTO with no `this`/DI dependency. Mapping that needs injected state (e.g. building a presigned URL) stays inline in the service.
 - **Layering:** controller (HTTP + Swagger + validation) → service (business logic, throws domain exceptions) → repository (Drizzle queries only). Don't query the DB from a controller or put HTTP concerns in a repository.
+- **Domains stay decoupled.** A feature module must not import another feature's service, repository, or schema tables directly. Cross-domain links go through a generic abstraction — a port behind an injection token (e.g. `ASSET_PORT`, `DOCUMENT_STORE`) or an **opaque generic reference** (`(entityType, entityId)` pairs the platform layer assigns no meaning to) — never a hard dependency on another domain's internals. `platform/` modules in particular are domain-agnostic: they know nothing about which tables hold their keys or what an entity *is*. Truly shared concerns move to `shared/`. This keeps each domain independently swappable, testable, and free of cross-feature import cycles.
 
 ## 11. Tooling
 

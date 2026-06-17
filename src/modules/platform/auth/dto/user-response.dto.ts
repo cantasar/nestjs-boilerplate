@@ -4,8 +4,11 @@ export class UserResponseDto {
   @ApiProperty()
   id: number;
 
-  @ApiProperty()
-  email: string;
+  @ApiProperty({ nullable: true })
+  email: string | null;
+
+  @ApiProperty({ nullable: true })
+  phone: string | null;
 
   @ApiProperty({ nullable: true })
   firstName: string | null;

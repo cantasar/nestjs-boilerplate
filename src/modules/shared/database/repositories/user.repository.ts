@@ -35,6 +35,31 @@ export class UserRepository {
     return row;
   }
 
+  async findByPhone(phone: string): Promise<User | undefined> {
+    const [row] = await this.db
+      .select()
+      .from(users)
+      .where(eq(users.phone, phone))
+      .limit(1);
+    return row;
+  }
+
+  async markEmailVerified(id: number): Promise<void> {
+    // void-ok
+    await this.db
+      .update(users)
+      .set({ emailVerified: true })
+      .where(eq(users.id, id));
+  }
+
+  async updatePasswordById(id: number, passwordHash: string): Promise<void> {
+    // void-ok
+    await this.db
+      .update(users)
+      .set({ password: passwordHash })
+      .where(eq(users.id, id));
+  }
+
   async create(data: NewUser): Promise<User | undefined> {
     const [row] = await this.db.insert(users).values(data).returning();
     return row;

@@ -10,6 +10,7 @@ import { AuthService } from './auth.service';
 import { UserRepository } from '../../shared/database/repositories/user.repository';
 import { MailService } from '../mail/mail.service';
 import { RedisService } from '../../shared/redis/redis.service';
+import { SMS_SENDER } from '../sms/interfaces/sms-sender.interface';
 import * as bcrypt from 'bcrypt';
 
 jest.mock('bcrypt', () => ({
@@ -50,6 +51,9 @@ describe('AuthService', () => {
   const mockMailService = {
     sendOtpEmail: jest.fn(),
   };
+  const mockSmsSender = {
+    send: jest.fn(),
+  };
 
   beforeEach(async () => {
     jest.clearAllMocks();
@@ -64,6 +68,7 @@ describe('AuthService', () => {
         { provide: ConfigService, useValue: mockConfigService },
         { provide: RedisService, useValue: mockRedisService },
         { provide: MailService, useValue: mockMailService },
+        { provide: SMS_SENDER, useValue: mockSmsSender },
       ],
     }).compile();
     service = module.get<AuthService>(AuthService);
