@@ -10,6 +10,7 @@ import {
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
+import { Public } from '../../shared/common/decorators/public.decorator';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
@@ -23,6 +24,7 @@ import { OAuthTokenDto } from './dto/oauth-token.dto';
 import { AppleAuthDto } from './dto/apple-auth.dto';
 
 @ApiTags('Auth')
+@Public()
 @Controller({ path: 'auth', version: '1' })
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
