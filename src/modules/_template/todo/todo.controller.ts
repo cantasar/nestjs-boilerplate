@@ -19,6 +19,9 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { TodoService } from './todo.service';
+import { Audit } from '../../shared/common/audit/audit.decorator';
+import { AuditAction } from '../../shared/common/audit/enums/audit-action.enum';
+import { AuditEntity } from '../../shared/common/audit/enums/audit-entity.enum';
 import { JwtGuard } from '../../shared/common/guards/jwt.guard';
 import { GetUser } from '../../shared/common/decorators/get-user.decorator';
 import { CreateTodoDto } from './dto/create-todo.dto';
@@ -78,6 +81,10 @@ export class TodoController {
     description: 'Todo created',
     type: TodoResponseDto,
   })
+  // Reference @Audit usage: a CREATE has no prior state, so no loadBefore — the
+  // entityId is read from the returned row's `id` (the interceptor's default),
+  // and the raw created Todo becomes the `after` snapshot.
+  @Audit({ entity: AuditEntity.RESOURCE, action: AuditAction.CREATE })
   create(
     @Body() dto: CreateTodoDto,
     @GetUser('id') userId: number,

@@ -7,6 +7,9 @@ import { validateEnv } from './modules/shared/common/config/env.validation';
 import { JwtAuthGuard } from './modules/shared/common/guards/jwt.guard';
 import { CommonModule } from './modules/shared/common/common.module';
 import { ResponseTransformInterceptor } from './modules/shared/common/interceptors/response-transform.interceptor';
+import { AuditModule } from './modules/shared/common/audit/audit.module';
+import { AuditContextInterceptor } from './modules/shared/common/audit/audit-context.interceptor';
+import { AuditInterceptor } from './modules/shared/common/audit/audit.interceptor';
 import { DatabaseModule } from './modules/shared/database/database.module';
 import { RedisModule } from './modules/shared/redis/redis.module';
 import { AuthModule } from './modules/platform/auth/auth.module';
@@ -40,6 +43,7 @@ import { HealthModule } from './modules/platform/health/health.module';
     }),
     CommonModule,
     DatabaseModule,
+    AuditModule,
     RedisModule,
     AuthModule,
     TodosModule,
@@ -48,11 +52,24 @@ import { HealthModule } from './modules/platform/health/health.module';
   providers: [
     {
       // Wrap every success response in the v1 envelope. Registered first so it
-      // sits OUTERMOST among interceptors — when audit (Batch 2) is added after
-      // this, audit runs closer to the handler and sees the raw result before
-      // this interceptor reshapes it.
+      // sits OUTERMOST among interceptors — the audit interceptors below run
+      // closer to the handler and see the RAW result (the domain object/DTO),
+      // not the `{ success, data }` envelope this applies.
       provide: APP_INTERCEPTOR,
       useClass: ResponseTransformInterceptor,
+    },
+    {
+      // Establish the per-request audit context (actor/request id/timestamp).
+      // Registered after the envelope (inside it) and before AuditInterceptor so
+      // the context is populated by the time a snapshot is written.
+      provide: APP_INTERCEPTOR,
+      useExisting: AuditContextInterceptor,
+    },
+    {
+      // Capture before/after snapshots for @Audit handlers and hand them to the
+      // AuditSink. Innermost interceptor → observes the raw handler result.
+      provide: APP_INTERCEPTOR,
+      useExisting: AuditInterceptor,
     },
     {
       provide: APP_GUARD,
