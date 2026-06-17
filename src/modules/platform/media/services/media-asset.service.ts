@@ -68,6 +68,9 @@ export class MediaAssetService implements AssetPort {
       key: storageKey,
       contentType: params.mimeType,
       cacheControl,
+      // Bind the size limit into the signed URL so an oversized PUT is rejected
+      // by storage — the client-declared fileSize above is only advisory.
+      contentLengthRange: { min: 1, max: maxFileSize },
     });
 
     const bound = entityType !== LIBRARY_ENTITY_TYPE;

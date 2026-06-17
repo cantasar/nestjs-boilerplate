@@ -8,8 +8,8 @@ import { RedisService } from '../../../shared/redis/redis.service';
 describe('MailProcessor', () => {
   const mail = { sendOtpEmail: jest.fn<Promise<void>, [string, string]>() };
   const redis = {
-    get: jest.fn<Promise<string | null>, [string]>(),
-    setWithExpirySeconds: jest.fn<Promise<void>, [string, string, number]>(),
+    acquireLock: jest.fn<Promise<string | null>, [string, number]>(),
+    del: jest.fn<Promise<number>, [string]>(),
   };
 
   let processor: MailProcessor;
@@ -19,8 +19,8 @@ describe('MailProcessor', () => {
   beforeEach(async () => {
     jest.clearAllMocks();
     mail.sendOtpEmail.mockResolvedValue(undefined);
-    redis.get.mockResolvedValue(null);
-    redis.setWithExpirySeconds.mockResolvedValue(undefined);
+    redis.acquireLock.mockResolvedValue('token');
+    redis.del.mockResolvedValue(1);
 
     const moduleRef = await Test.createTestingModule({
       providers: [
@@ -32,28 +32,27 @@ describe('MailProcessor', () => {
     processor = moduleRef.get(MailProcessor);
   });
 
-  it('sends the OTP mail and sets the dedup marker', async () => {
+  it('claims the dedup key then sends the OTP mail', async () => {
     await processor.process(job({ template: 'otp', to: 'a@b.c', otp: '123' }));
-    expect(mail.sendOtpEmail).toHaveBeenCalledWith('a@b.c', '123');
-    expect(redis.setWithExpirySeconds).toHaveBeenCalledWith(
+    expect(redis.acquireLock).toHaveBeenCalledWith(
       'mail:sent:otp:a@b.c:123',
-      '1',
       900,
     );
+    expect(mail.sendOtpEmail).toHaveBeenCalledWith('a@b.c', '123');
+    expect(redis.del).not.toHaveBeenCalled();
   });
 
-  it('skips when a dedup marker is already present', async () => {
-    redis.get.mockResolvedValue('1');
+  it('skips when the dedup key is already claimed', async () => {
+    redis.acquireLock.mockResolvedValue(null);
     await processor.process(job({ template: 'otp', to: 'a@b.c', otp: '123' }));
     expect(mail.sendOtpEmail).not.toHaveBeenCalled();
-    expect(redis.setWithExpirySeconds).not.toHaveBeenCalled();
   });
 
-  it('does not set the dedup marker when the send throws', async () => {
+  it('releases the dedup claim when the send throws', async () => {
     mail.sendOtpEmail.mockRejectedValue(new Error('smtp down'));
     await expect(
       processor.process(job({ template: 'otp', to: 'a@b.c', otp: '123' })),
     ).rejects.toThrow('smtp down');
-    expect(redis.setWithExpirySeconds).not.toHaveBeenCalled();
+    expect(redis.del).toHaveBeenCalledWith('mail:sent:otp:a@b.c:123');
   });
 });

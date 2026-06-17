@@ -4,7 +4,6 @@ import {
   HttpCode,
   HttpStatus,
   Inject,
-  NotFoundException,
   Param,
   ParseIntPipe,
   Patch,
@@ -20,6 +19,8 @@ import {
 import { JwtGuard } from '../../shared/common/guards/jwt.guard';
 import { GetUser } from '../../shared/common/decorators/get-user.decorator';
 import { ApiPaginatedEnvelope } from '../../shared/common/decorators/api-common-responses.decorator';
+import { DomainException } from '../../shared/common/errors/domain.exception';
+import { NotificationErrorCode } from '../../shared/common/errors/error-codes';
 import {
   NOTIFICATION_PORT,
   type NotificationPort,
@@ -70,6 +71,6 @@ export class NotificationController {
   ): Promise<void> {
     // void-ok
     const ok = await this.notifications.markRead(id, userId);
-    if (!ok) throw new NotFoundException('Notification not found');
+    if (!ok) throw new DomainException(NotificationErrorCode.NOT_FOUND);
   }
 }

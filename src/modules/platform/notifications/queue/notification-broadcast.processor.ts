@@ -51,7 +51,9 @@ export class NotificationBroadcastProcessor
   async process(job: Job<BroadcastChunkJob>): Promise<BroadcastChunkResult> {
     const data = job.data;
 
-    // Phase A — inbox persistence (canonical record).
+    // Phase A — inbox persistence (canonical record). Idempotent across retries:
+    // skip recipients already persisted for this broadcast so a re-run never
+    // double-inserts inbox rows.
     const rows: NewNotification[] = data.recipients.map((r) => ({
       recipientUserId: r.userId,
       type: data.type,
@@ -63,8 +65,23 @@ export class NotificationBroadcastProcessor
       broadcastId: data.broadcastId,
       pushDeliveryStatus: PushDeliveryStatus.PENDING,
     }));
-    const inserted = await this.repo.bulkInsert(rows);
-    const insertedIds = inserted.map((row) => row.id);
+
+    let toInsert = rows;
+    const existingIds: number[] = [];
+    if (data.broadcastId) {
+      const recipientIds = data.recipients.map((r) => r.userId);
+      const existing = await this.repo.findExistingByBroadcast(
+        data.broadcastId,
+        recipientIds,
+      );
+      const existingRecipients = new Set(
+        existing.map((e) => e.recipientUserId),
+      );
+      existingIds.push(...existing.map((e) => e.id));
+      toInsert = rows.filter((r) => !existingRecipients.has(r.recipientUserId));
+    }
+    const inserted = await this.repo.bulkInsert(toInsert);
+    const insertedIds = [...existingIds, ...inserted.map((row) => row.id)];
 
     // Phase B — push to the targetable recipients only.
     const externalIds = data.recipients
@@ -119,11 +136,27 @@ export class NotificationBroadcastProcessor
   }
 
   @OnWorkerEvent('failed')
-  onFailed(job: Job<BroadcastChunkJob>, err: Error): void {
+  async onFailed(job: Job<BroadcastChunkJob>, err: Error): Promise<void> {
+    // void-ok
+    if (!job) return;
     const attempts = job.opts.attempts ?? 1;
     this.logger.error(
       `Broadcast chunk job ${job.id} failed (attempt ${job.attemptsMade}/${attempts}): ${err.message}`,
     );
+    // Terminal failure (retries exhausted): flip the chunk's still-PENDING rows
+    // to FAILED so they don't sit PENDING forever.
+    if (job.attemptsMade >= attempts && job.data.broadcastId) {
+      const recipientIds = job.data.recipients.map((r) => r.userId);
+      await this.repo
+        .markBroadcastPendingFailed(job.data.broadcastId, recipientIds)
+        .catch((markErr: unknown) => {
+          this.logger.error(
+            `Failed to mark broadcast=${job.data.broadcastId} rows FAILED: ${
+              markErr instanceof Error ? markErr.message : String(markErr)
+            }`,
+          );
+        });
+    }
   }
 
   /** Picks the recipient's locale copy, falling back to `default` then any value. */

@@ -6,6 +6,7 @@ import {
 } from '../interfaces/push-sender.interface';
 import { PushDeliveryStatus } from '../../../shared/database/schema/enums/notification-type.enum';
 import { paginate } from '../../../shared/common/utils/pagination.util';
+import { toNotificationResponse } from '../mappers/notification.mapper';
 import type { NotificationPort } from '../interfaces/notification-port.interface';
 import type {
   ListForUserParams,
@@ -86,12 +87,24 @@ export class NotificationService implements NotificationPort {
     return notification;
   }
 
+  /**
+   * Marks a notification read. Idempotent: returns true when the row is now (or
+   * was already) read for this user, false only when no such row exists for the
+   * user — so a repeated mark-read is a success, not a 404.
+   */
   async markRead(id: number, recipientUserId: number): Promise<boolean> {
-    return this.repo.markRead(id, recipientUserId);
+    const updated = await this.repo.markRead(id, recipientUserId);
+    if (updated) return true;
+    return this.repo.existsForUser(id, recipientUserId);
   }
 
   async listForUser(params: ListForUserParams): Promise<NotificationPage> {
     const { rows, totalCount } = await this.repo.findPage(params);
-    return paginate(rows, totalCount, params.page, params.limit);
+    return paginate(
+      rows.map(toNotificationResponse),
+      totalCount,
+      params.page,
+      params.limit,
+    );
   }
 }

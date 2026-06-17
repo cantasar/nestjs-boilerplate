@@ -3,7 +3,9 @@
 // characters render correctly.
 export const EXPORT_BOM = '﻿';
 
-const CSV_FORMULA_PREFIX = /^[=+\-@\t\r]/;
+// Match a formula trigger at the start, ignoring any leading whitespace (a
+// leading space/tab before `=` still triggers evaluation in some spreadsheets).
+const CSV_FORMULA_PREFIX = /^\s*[=+\-@]/;
 
 /**
  * Render a single CSV cell: stringifies objects as JSON, quotes on

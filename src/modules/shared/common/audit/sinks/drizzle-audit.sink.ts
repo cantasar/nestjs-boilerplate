@@ -26,9 +26,11 @@ export class DrizzleAuditSink implements AuditSink {
     const row: NewAuditLog = {
       action: entry.action,
       entity: entry.entity,
-      entityId: entry.entityId,
-      before: redactSnapshot(entry.before),
-      after: redactSnapshot(entry.after),
+      // entity_id is varchar(128); truncate so an over-long id can't throw and
+      // silently drop the whole audit row.
+      entityId: entry.entityId?.slice(0, 128),
+      before: this.boundSnapshot(redactSnapshot(entry.before)),
+      after: this.boundSnapshot(redactSnapshot(entry.after)),
       actorId: entry.actorId,
       requestId: entry.requestId,
       at: entry.at,
@@ -41,4 +43,21 @@ export class DrizzleAuditSink implements AuditSink {
       this.logger.error(`Failed to write audit log: ${message}`, stack);
     }
   }
+
+  /**
+   * Cap the serialized snapshot size so a huge entity (large arrays, embedded
+   * blobs) can't bloat the audit table; oversized snapshots are replaced with a
+   * marker recording the dropped byte size.
+   */
+  private boundSnapshot(
+    snapshot: Record<string, unknown> | null | undefined,
+  ): Record<string, unknown> | null | undefined {
+    if (snapshot === null || snapshot === undefined) return snapshot;
+    const bytes = Buffer.byteLength(JSON.stringify(snapshot), 'utf8');
+    if (bytes <= MAX_SNAPSHOT_BYTES) return snapshot;
+    return { _truncated: true, _bytes: bytes };
+  }
 }
+
+// ~64 KB ceiling on a single before/after snapshot.
+const MAX_SNAPSHOT_BYTES = 64 * 1024;

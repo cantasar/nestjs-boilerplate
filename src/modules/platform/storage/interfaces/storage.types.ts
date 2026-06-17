@@ -3,6 +3,12 @@ export interface PresignUploadParams {
   contentType: string;
   expiresIn?: number;
   cacheControl?: string;
+  /**
+   * Inclusive byte range the upload must fall within, signed into the URL so the
+   * storage backend rejects an over-/under-sized PUT (the client-declared size
+   * alone is advisory). The client must send the matching constraint header.
+   */
+  contentLengthRange?: { min: number; max: number };
 }
 
 export interface PresignReadParams {

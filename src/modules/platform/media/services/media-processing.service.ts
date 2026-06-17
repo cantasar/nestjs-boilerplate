@@ -57,7 +57,20 @@ export class MediaProcessingService {
       return asset;
     }
 
-    const original = await this.storage.downloadObject(asset.storageKey);
+    // The original may never have been uploaded (presign issued, PUT never
+    // completed). Treat a failed download as a terminal no-op rather than
+    // throwing — otherwise the job retries to dead-letter for an orphan asset.
+    let original: Buffer;
+    try {
+      original = await this.storage.downloadObject(asset.storageKey);
+    } catch (err) {
+      this.logger.warn(
+        `Cannot download original for asset ${asset.id} (${asset.storageKey}); skipping variant generation: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+      return asset;
+    }
     const { dir, stem } = this.splitKey(asset.storageKey);
     const thumbnailKey = `${dir}${stem}-thumb.jpg`;
     const mediumKey = `${dir}${stem}-medium.jpg`;

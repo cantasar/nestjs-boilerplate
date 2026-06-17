@@ -52,7 +52,11 @@ export class MediaProcessingProcessor
   }
 
   @OnWorkerEvent('failed')
-  onFailed(job: Job<MediaProcessingJob>, err: Error): void {
+  onFailed(job: Job<MediaProcessingJob> | undefined, err: Error): void {
+    if (!job) {
+      this.logger.error(`Media processing job failed (no job): ${err.message}`);
+      return;
+    }
     const attempts = job.opts.attempts ?? 1;
     this.logger.error(
       `Media processing job ${job.id} (asset=${job.data.assetId}) failed (attempt ${job.attemptsMade}/${attempts}): ${err.message}`,

@@ -180,3 +180,22 @@ export const BUG_REPORT_ERRORS: Record<
     message: 'Bug report {id} not found',
   },
 };
+
+/**
+ * Notification inbox error codes. Owned by the platform notifications feature;
+ * lives here so the registry stays the single catalog home.
+ */
+export enum NotificationErrorCode {
+  NOT_FOUND = 'NOTIFICATION_NOT_FOUND',
+}
+
+export const NOTIFICATION_ERRORS: Record<
+  NotificationErrorCode,
+  ErrorCodeDefinition
+> = {
+  [NotificationErrorCode.NOT_FOUND]: {
+    code: NotificationErrorCode.NOT_FOUND,
+    httpStatus: HttpStatus.NOT_FOUND,
+    message: 'Notification not found',
+  },
+};

@@ -1,3 +1,4 @@
+import { sql } from 'drizzle-orm';
 import {
   pgTable,
   bigserial,
@@ -7,6 +8,7 @@ import {
   jsonb,
   timestamp,
   index,
+  uniqueIndex,
 } from 'drizzle-orm/pg-core';
 import { users } from './user.schema';
 import {
@@ -49,5 +51,10 @@ export const notifications = pgTable(
       table.createdAt,
     ),
     index('notifications_broadcast_id_idx').on(table.broadcastId),
+    // One inbox row per (broadcast, recipient): makes the broadcast worker's
+    // re-run on retry a no-op at the DB level (the worker also guards in code).
+    uniqueIndex('notifications_broadcast_recipient_uniq')
+      .on(table.broadcastId, table.recipientUserId)
+      .where(sql`${table.broadcastId} is not null`),
   ],
 );

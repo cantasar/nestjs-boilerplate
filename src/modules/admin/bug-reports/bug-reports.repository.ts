@@ -45,7 +45,10 @@ export class BugReportsRepository {
       conditions.push(eq(bugReports.isActive, true));
     }
     if (filters.search) {
-      const pattern = `%${filters.search}%`;
+      // Escape LIKE wildcards so user input is matched literally, not as a
+      // pattern (a stray % / _ would otherwise broaden or skew the search).
+      const escaped = filters.search.replace(/[\\%_]/g, '\\$&');
+      const pattern = `%${escaped}%`;
       conditions.push(
         or(
           ilike(bugReports.title, pattern),

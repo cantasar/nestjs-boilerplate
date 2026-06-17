@@ -14,6 +14,7 @@ import {
 } from '../consent/interfaces/document-store.interface';
 import { LegalDocumentSummaryDto } from './dto/legal-document-summary.dto';
 import { LegalDocumentDetailDto } from './dto/legal-document-detail.dto';
+import { LegalDocumentListQueryDto } from './dto/legal-document-list-query.dto';
 
 /**
  * Public, unauthenticated read API for the current legal documents. Marked
@@ -33,9 +34,9 @@ export class LegalDocumentsController {
   @ApiOkResponse({ type: [LegalDocumentSummaryDto] })
   @ApiPublicErrors()
   async list(
-    @Query('type') type?: DocumentType,
+    @Query() query: LegalDocumentListQueryDto,
   ): Promise<LegalDocumentSummaryDto[]> {
-    const docs = await this.store.findCurrent(type);
+    const docs = await this.store.findCurrent(query.type);
     return docs.map((d) => ({
       slug: d.slug,
       version: d.version,

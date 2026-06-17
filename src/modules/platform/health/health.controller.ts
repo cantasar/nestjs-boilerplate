@@ -12,6 +12,7 @@ import { DATABASE_TOKENS } from '../../shared/database/database.tokens';
 import type { Pool } from 'pg';
 import { RedisService } from '../../shared/redis/redis.service';
 import { Public } from '../../shared/common/decorators/public.decorator';
+import { RawResponse } from '../../shared/common/decorators/raw-response.decorator';
 
 @ApiExcludeController()
 @Public()
@@ -38,7 +39,11 @@ export class HealthController {
 
   // Readiness: verifies downstream dependencies (DB + Redis) before the service
   // is allowed to receive traffic.
+  // RawResponse: this endpoint sets its own status (503 when degraded) and
+  // returns a diagnostic body, so it must bypass the success-envelope
+  // interceptor (which would otherwise emit `success: true` on a 503).
   @Get('ready')
+  @RawResponse()
   async ready(@Res({ passthrough: true }) res: Response): Promise<{
     status: string;
     checks: Record<string, string>;

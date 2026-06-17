@@ -1,6 +1,6 @@
 import type { NotificationType } from '../../../shared/database/schema/enums/notification-type.enum';
-import type { Notification } from '../../../shared/database/types/notification-select.type';
 import type { Paginated } from '../../../shared/common/types/paginated.type';
+import type { NotificationResponseDto } from '../dto/notification-response.dto';
 
 /** Localized copy keyed by locale (`tr`, `en`, …); the default locale is required. */
 export interface LocalizedCopy {
@@ -37,4 +37,4 @@ export interface ListForUserParams {
   unreadOnly?: boolean;
 }
 
-export type NotificationPage = Paginated<Notification>;
+export type NotificationPage = Paginated<NotificationResponseDto>;

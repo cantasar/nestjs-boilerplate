@@ -76,11 +76,25 @@ export class OneSignalPushSender implements PushSender, OnModuleInit {
     let lastError: unknown;
     for (let attempt = 0; attempt <= INTERNAL_RETRY_ATTEMPTS; attempt += 1) {
       try {
-        const response = await this.client.createNotification(notification);
+        const response = (await this.client.createNotification(
+          notification,
+        )) as { id?: string; recipients?: number };
+        // OneSignal returns HTTP 200 even when every alias is invalid/
+        // unsubscribed (recipients=0). Treat that as "nothing delivered" and
+        // skip rather than report SENT or retry a permanently-empty target.
+        if (
+          typeof response.recipients === 'number' &&
+          response.recipients === 0
+        ) {
+          this.logger.warn(
+            'OneSignal accepted the request but reached 0 recipients (all aliases invalid/unsubscribed)',
+          );
+          return { delivered: false, skipped: true };
+        }
         return {
           delivered: true,
           providerMessageId: response.id ?? undefined,
-          recipients: params.externalIds.length,
+          recipients: response.recipients ?? params.externalIds.length,
         };
       } catch (error) {
         lastError = error;

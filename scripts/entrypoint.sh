@@ -52,8 +52,14 @@ if [ "${RUN_MIGRATIONS:-true}" = "true" ]; then
   (async () => {
     const pool = new Pool({ connectionString: process.env.DATABASE_URL, max: 1 });
     const db = drizzle(pool);
+    // Serialize migrations across replicas: a session-level advisory lock means
+    // only one booting instance migrates at a time; the rest wait, then find the
+    // schema already current. Prevents concurrent migrators deadlocking.
+    const LOCK_KEY = 776655;
     try {
+      await pool.query('SELECT pg_advisory_lock(\$1)', [LOCK_KEY]);
       await migrate(db, { migrationsFolder: './drizzle' });
+      await pool.query('SELECT pg_advisory_unlock(\$1)', [LOCK_KEY]);
     } finally {
       await pool.end().catch(() => {});
     }

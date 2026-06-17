@@ -6,6 +6,7 @@ import {
   CommonErrorCode,
   LEGAL_DOCUMENTS_ERRORS,
   MEDIA_ERRORS,
+  NOTIFICATION_ERRORS,
   STORAGE_ERRORS,
   USER_ERRORS,
 } from './error-codes';
@@ -23,6 +24,7 @@ const CATALOGS: readonly Record<string, ErrorCodeDefinition>[] = [
   MEDIA_ERRORS,
   LEGAL_DOCUMENTS_ERRORS,
   BUG_REPORT_ERRORS,
+  NOTIFICATION_ERRORS,
 ];
 
 /**

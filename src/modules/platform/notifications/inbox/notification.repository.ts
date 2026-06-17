@@ -30,6 +30,67 @@ export class NotificationRepository {
     return this.db.insert(notifications).values(rows).returning();
   }
 
+  /**
+   * Existing inbox rows already persisted for a broadcast chunk, keyed by
+   * recipient. Lets the worker skip re-inserting on a retry (idempotency).
+   */
+  async findExistingByBroadcast(
+    broadcastId: string,
+    recipientUserIds: number[],
+  ): Promise<{ id: number; recipientUserId: number }[]> {
+    if (recipientUserIds.length === 0) return [];
+    return this.db
+      .select({
+        id: notifications.id,
+        recipientUserId: notifications.recipientUserId,
+      })
+      .from(notifications)
+      .where(
+        and(
+          eq(notifications.broadcastId, broadcastId),
+          inArray(notifications.recipientUserId, recipientUserIds),
+        ),
+      );
+  }
+
+  /**
+   * Mark every still-PENDING row of a broadcast chunk as FAILED. Called when a
+   * chunk job exhausts its retries so rows don't sit PENDING forever.
+   */
+  async markBroadcastPendingFailed(
+    broadcastId: string,
+    recipientUserIds: number[],
+  ): Promise<void> {
+    // void-ok
+    if (recipientUserIds.length === 0) return;
+    await this.db
+      .update(notifications)
+      .set({ pushDeliveryStatus: PushDeliveryStatus.FAILED })
+      .where(
+        and(
+          eq(notifications.broadcastId, broadcastId),
+          inArray(notifications.recipientUserId, recipientUserIds),
+          eq(notifications.pushDeliveryStatus, PushDeliveryStatus.PENDING),
+        ),
+      );
+  }
+
+  /** True if a non-deleted notification with this id belongs to the user. */
+  async existsForUser(id: number, recipientUserId: number): Promise<boolean> {
+    const rows = await this.db
+      .select({ id: notifications.id })
+      .from(notifications)
+      .where(
+        and(
+          eq(notifications.id, id),
+          eq(notifications.recipientUserId, recipientUserId),
+          isNull(notifications.deletedAt),
+        ),
+      )
+      .limit(1);
+    return rows.length > 0;
+  }
+
   async findPage(
     params: ListForUserParams,
   ): Promise<{ rows: Notification[]; totalCount: number }> {

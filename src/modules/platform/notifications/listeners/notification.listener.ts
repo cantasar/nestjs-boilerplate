@@ -22,8 +22,11 @@ export class NotificationListener {
 
   constructor(private readonly notificationService: NotificationService) {}
 
-  @OnEvent(APP_EVENTS.EXAMPLE_HAPPENED, { async: true })
+  @OnEvent(APP_EVENTS.EXAMPLE_HAPPENED)
   onExampleHappened(event: ExampleHappenedEvent): void {
+    // Detach with queueMicrotask (NOT `{ async: true }`, which would re-couple
+    // the handler promise to the emitter) so a slow/failed notification never
+    // bubbles back into the emitting request; errors are logged here.
     queueMicrotask(() => {
       void this.deliver(event).catch((err) => {
         this.logger.error(

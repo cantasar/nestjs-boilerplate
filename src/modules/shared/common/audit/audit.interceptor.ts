@@ -11,6 +11,7 @@ import { Observable, from } from 'rxjs';
 import { mergeMap, tap } from 'rxjs/operators';
 import { getAuditContext } from './audit-context';
 import { AUDIT_METADATA, AUDIT_SINK } from './constants/audit.tokens';
+import { redactSnapshot } from './sinks/redact-sensitive.util';
 import type { AuditOptions } from './interfaces/audit-options.types';
 import type { AuditSink } from './interfaces/audit-sink.interface';
 import type { AuditEntry } from './interfaces/audit-entry.types';
@@ -72,8 +73,17 @@ export class AuditInterceptor implements NestInterceptor {
       mergeMap((before) =>
         next.handle().pipe(
           tap((result) => {
-            if (opts.skipIf?.(args, result)) return;
-            this.writeLog(opts, args, before, result);
+            // Auditing is best-effort: any failure in skipIf / loadAfter /
+            // entityId must never turn a successful request into a 500.
+            try {
+              if (opts.skipIf?.(args, result)) return;
+              this.writeLog(opts, args, before, result);
+            } catch (err) {
+              this.logger.warn(
+                `audit after-snapshot failed (${opts.entity}.${opts.action}): ` +
+                  (err instanceof Error ? err.message : String(err)),
+              );
+            }
           }),
         ),
       ),
@@ -101,8 +111,10 @@ export class AuditInterceptor implements NestInterceptor {
       entity: opts.entity,
       action: opts.action,
       entityId: String(rawId),
-      before: toRecord(before),
-      after: toRecord(after),
+      // Redact here (not only in the Drizzle sink) so EVERY sink bound to
+      // AUDIT_SINK receives already-redacted snapshots.
+      before: redactSnapshot(toRecord(before)) ?? undefined,
+      after: redactSnapshot(toRecord(after)) ?? undefined,
       actorId: ctx?.actorId,
       requestId: ctx?.requestId,
       at: ctx?.at ?? new Date(),

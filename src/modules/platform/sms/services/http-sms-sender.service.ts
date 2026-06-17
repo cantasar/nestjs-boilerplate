@@ -28,10 +28,13 @@ export class HttpSmsSender implements SmsSender {
 
     const url = this.buildUrl(apiUrl, to, message);
     const successPrefix = this.config.get<string>('SMS_SUCCESS_PREFIX') ?? '00';
+    const timeoutMs = this.config.get<number>('SMS_TIMEOUT_MS') ?? 10_000;
 
+    let res: Response;
     let body: string;
     try {
-      const res = await fetch(url);
+      // Bound the request so a hung gateway can't pin the worker slot forever.
+      res = await fetch(url, { signal: AbortSignal.timeout(timeoutMs) });
       body = await res.text();
     } catch (error) {
       this.logger.error(
@@ -41,9 +44,13 @@ export class HttpSmsSender implements SmsSender {
       throw new Error('SMS gateway request failed');
     }
 
-    if (!body.startsWith(successPrefix)) {
-      this.logger.error(`SMS gateway rejected message: ${body}`);
-      throw new Error(`SMS gateway rejected message: ${body}`);
+    // The gateway body can echo back credentials/PII, so it is never put in the
+    // thrown message (which propagates to logs and, via the filter, responses).
+    if (!res.ok || !body.startsWith(successPrefix)) {
+      this.logger.error(
+        `SMS gateway rejected message (status ${res.status}): ${body}`,
+      );
+      throw new Error('SMS gateway rejected message');
     }
   }
 

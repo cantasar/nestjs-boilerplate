@@ -33,6 +33,12 @@ export class GcsStorageService implements StorageService {
     if (params.cacheControl) {
       extensionHeaders['cache-control'] = params.cacheControl;
     }
+    if (params.contentLengthRange) {
+      // GCS enforces the uploaded object size is within this range when the
+      // client sends the matching x-goog-content-length-range header.
+      extensionHeaders['x-goog-content-length-range'] =
+        `${params.contentLengthRange.min},${params.contentLengthRange.max}`;
+    }
 
     const [url] = await this.bucket()
       .file(params.key)

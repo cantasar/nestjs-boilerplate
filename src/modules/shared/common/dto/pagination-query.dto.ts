@@ -5,6 +5,7 @@ import { SortOrder } from '../enums/sort-order.enum';
 import {
   DEFAULT_PAGE,
   DEFAULT_PAGE_SIZE,
+  MAX_PAGE,
   MAX_PAGE_SIZE,
 } from '../constants/pagination.constants';
 
@@ -24,6 +25,7 @@ export class PaginationQueryDto {
   @Type(() => Number)
   @IsInt()
   @Min(1)
+  @Max(MAX_PAGE)
   page: number = DEFAULT_PAGE;
 
   @ApiPropertyOptional({

@@ -1,7 +1,12 @@
 import { BullModule } from '@nestjs/bullmq';
-import { Global, Module } from '@nestjs/common';
+import { Global, Module, type OnModuleDestroy } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import Redis from 'ioredis';
+
+// The dedicated BullMQ connection is created in the forRoot factory; hold a
+// reference so it can be closed on shutdown (BullMQ does not own/close a
+// connection instance passed to it), avoiding a leak on teardown/test reboots.
+let queueConnection: Redis | undefined;
 
 /**
  * App-wide BullMQ root. A dedicated ioredis client (separate from the shared
@@ -21,10 +26,11 @@ import Redis from 'ioredis';
       inject: [ConfigService],
       useFactory: (config: ConfigService) => {
         const prefix = config.get<string>('QUEUE_PREFIX');
+        queueConnection = new Redis(config.getOrThrow<string>('REDIS_URL'), {
+          maxRetriesPerRequest: null,
+        });
         return {
-          connection: new Redis(config.getOrThrow<string>('REDIS_URL'), {
-            maxRetriesPerRequest: null,
-          }),
+          connection: queueConnection,
           ...(prefix ? { prefix } : {}),
         };
       },
@@ -32,4 +38,12 @@ import Redis from 'ioredis';
   ],
   exports: [BullModule],
 })
-export class QueueModule {}
+export class QueueModule implements OnModuleDestroy {
+  // void-ok: closes the dedicated BullMQ connection on shutdown.
+  async onModuleDestroy(): Promise<void> {
+    if (queueConnection) {
+      await queueConnection.quit();
+      queueConnection = undefined;
+    }
+  }
+}

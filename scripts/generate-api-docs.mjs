@@ -274,24 +274,21 @@ function renderTagFile(tag, ops) {
 
 // ─── write files ─────────────────────────────────────────────────────────────
 
-// Clean previously auto-generated .md files only (preserve handwritten docs).
-// Auto-generated files are lowercase-kebab-case module slugs + enums.md.
-// Handwritten docs (UPPERCASE_SNAKE_CASE.md, README.md, CHANGELOG-*.md) are kept.
+// Clean ONLY files this script wrote on a previous run, tracked in a manifest —
+// never pattern-match filenames (that risked deleting a handwritten doc whose
+// name happened to look generated). Handwritten docs are untouched.
+const MANIFEST_PATH = join(OUT_DIR, '.generated-manifest.json');
 try {
-  const dir = OUT_DIR;
   const fs = await import('fs');
-  const isGenerated = (name) => {
-    if (!name.endsWith('.md')) return false;
-    if (name === 'README.md') return false;
-    if (name === 'enums.md') return true;
-    // Generated module files: lowercase, no underscores, kebab-case.
-    return /^[a-z][a-z0-9-]*\.md$/.test(name);
-  };
-  for (const f of fs.readdirSync(dir)) {
-    if (isGenerated(f)) rmSync(join(dir, f));
+  const prev = JSON.parse(fs.readFileSync(MANIFEST_PATH, 'utf8'));
+  if (Array.isArray(prev)) {
+    for (const name of prev) {
+      const target = join(OUT_DIR, name);
+      if (fs.existsSync(target)) rmSync(target);
+    }
   }
 } catch {
-  // Out dir not yet present — first run, nothing to clean.
+  // No manifest yet — first run, nothing to clean.
 }
 
 mkdirSync(OUT_DIR, { recursive: true });
@@ -522,6 +519,10 @@ if (insertAt > 0) {
   enumReadmeLines.push(...enumsBlock);
 }
 writeFileSync(join(OUT_DIR, 'README.md'), enumReadmeLines.join('\n'));
+
+// Record every file written this run so the next run cleans exactly these.
+const manifest = [...generated.map((g) => g.file), 'README.md', 'enums.md'];
+writeFileSync(MANIFEST_PATH, JSON.stringify(manifest, null, 2));
 
 console.log(
   `Generated ${generated.length} module files + 1 enum file in ${OUT_DIR}`,

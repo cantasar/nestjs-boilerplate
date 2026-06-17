@@ -18,9 +18,9 @@ const CONCURRENCY = Math.max(
   Number(process.env.QUEUE_CONCURRENCY ?? DEFAULT_QUEUE_CONCURRENCY),
 );
 
-// Best-effort idempotency window for OTP-bearing mail: a job re-delivered after
-// a successful send is skipped. Marker set AFTER success so a real failure still
-// retries.
+// Idempotency window for OTP-bearing mail: the dedup key is claimed atomically
+// (SET NX) BEFORE the send so concurrent re-deliveries can't both send, then
+// released on failure so a genuine failure still retries.
 const MAIL_DEDUP_TTL_SECONDS = 900;
 
 /**
@@ -42,25 +42,31 @@ export class MailProcessor extends WorkerHost implements OnApplicationShutdown {
   // void-ok: WorkerHost.process resolves with nothing for fire-and-forget jobs.
   async process(job: Job<MailJob>): Promise<void> {
     const data = job.data;
+    // Fail fast on an unknown template (before claiming) so it surfaces instead
+    // of silently no-op'ing and being marked sent.
+    if (data.template !== 'otp') {
+      throw new Error(`Unknown mail template: ${String(data.template)}`);
+    }
+
     const dedupKey = `mail:sent:${data.template}:${data.to}:${data.otp}`;
-    if (await this.redis.get(dedupKey)) {
+    const claimed = await this.redis.acquireLock(
+      dedupKey,
+      MAIL_DEDUP_TTL_SECONDS,
+    );
+    if (!claimed) {
       this.logger.debug(
         `Mail ${data.template} to ${data.to} already sent; skipping duplicate`,
       );
       return;
     }
 
-    switch (data.template) {
-      case 'otp':
-        await this.mail.sendOtpEmail(data.to, data.otp);
-        break;
+    try {
+      await this.mail.sendOtpEmail(data.to, data.otp);
+    } catch (err) {
+      // Release the claim so BullMQ's retry can re-send.
+      await this.redis.del(dedupKey);
+      throw err;
     }
-
-    await this.redis.setWithExpirySeconds(
-      dedupKey,
-      '1',
-      MAIL_DEDUP_TTL_SECONDS,
-    );
   }
 
   // void-ok: drain returns nothing once the worker has closed.

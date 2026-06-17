@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -57,7 +58,10 @@ export class NotificationQueueService {
       backoffMs: this.config.get<number>('QUEUE_DEFAULT_BACKOFF_MS') ?? 1000,
     });
 
-    const broadcastId = params.broadcastId ?? null;
+    // Always carry a broadcastId: it keys the worker's per-recipient dedup so a
+    // chunk retry can't double-insert inbox rows. Generated when the caller
+    // didn't supply one.
+    const broadcastId = params.broadcastId ?? randomUUID();
     const jobs: { name: string; data: BroadcastChunkJob; opts: typeof opts }[] =
       [];
     for (let i = 0; i < recipients.length; i += chunkSize) {

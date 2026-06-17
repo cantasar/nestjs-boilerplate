@@ -161,7 +161,13 @@ export function setupSwagger(
   config: ConfigService,
   options: { readonly apiPrefix: string; readonly docsPrefix?: string },
 ): boolean {
-  if (config.get<string>('SWAGGER_ENABLED') === 'false') return false;
+  // Default-deny in production: docs are served only when SWAGGER_ENABLED is
+  // explicitly 'true'. Outside production they default on (disable with 'false').
+  const swaggerEnabled = config.get<string>('SWAGGER_ENABLED');
+  const isProduction = config.get<string>('NODE_ENV') === 'production';
+  if (isProduction ? swaggerEnabled !== 'true' : swaggerEnabled === 'false') {
+    return false;
+  }
   const docsMount = (options.docsPrefix ?? options.apiPrefix).replace(
     /^\/+|\/+$/g,
     '',

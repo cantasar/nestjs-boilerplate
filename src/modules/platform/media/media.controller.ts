@@ -14,6 +14,7 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { JwtGuard } from '../../shared/common/guards/jwt.guard';
+import { ProdAdminGuard } from '../../shared/common/guards/prod-admin.guard';
 import { GetUser } from '../../shared/common/decorators/get-user.decorator';
 import {
   ApiErrorCodes,
@@ -62,7 +63,12 @@ export class MediaController {
     });
   }
 
+  // Admin-only: by-entity listing takes an arbitrary (entityType, entityId)
+  // pair, so without an ownership model any authenticated user could enumerate
+  // another principal's assets. Gate it to admins; per-user media access must
+  // go through a domain-specific, ownership-scoped endpoint.
   @Get('by-entity')
+  @UseGuards(ProdAdminGuard)
   @ApiOperation({ summary: 'List assets bound to a generic entity reference' })
   @ApiOkResponse({ type: [MediaAssetResponseDto] })
   listByEntity(

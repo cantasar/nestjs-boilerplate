@@ -9,8 +9,8 @@ import { RedisService } from '../../../shared/redis/redis.service';
 describe('SmsProcessor', () => {
   const sender = { send: jest.fn<Promise<void>, [string, string]>() };
   const redis = {
-    get: jest.fn<Promise<string | null>, [string]>(),
-    setWithExpirySeconds: jest.fn<Promise<void>, [string, string, number]>(),
+    acquireLock: jest.fn<Promise<string | null>, [string, number]>(),
+    del: jest.fn<Promise<number>, [string]>(),
   };
   const config = { get: jest.fn() };
 
@@ -21,8 +21,8 @@ describe('SmsProcessor', () => {
   beforeEach(async () => {
     jest.clearAllMocks();
     sender.send.mockResolvedValue(undefined);
-    redis.get.mockResolvedValue(null);
-    redis.setWithExpirySeconds.mockResolvedValue(undefined);
+    redis.acquireLock.mockResolvedValue('token');
+    redis.del.mockResolvedValue(1);
     config.get.mockReturnValue(undefined);
 
     const moduleRef = await Test.createTestingModule({
@@ -36,15 +36,15 @@ describe('SmsProcessor', () => {
     processor = moduleRef.get(SmsProcessor);
   });
 
-  it('templates the OTP and sends, then sets the dedup marker', async () => {
+  it('claims the dedup key, templates the OTP and sends', async () => {
     config.get.mockReturnValue('Code is {otp}!');
     await processor.process(job({ to: '+1555', otp: '123456' }));
-    expect(sender.send).toHaveBeenCalledWith('+1555', 'Code is 123456!');
-    expect(redis.setWithExpirySeconds).toHaveBeenCalledWith(
+    expect(redis.acquireLock).toHaveBeenCalledWith(
       'sms:sent:+1555:123456',
-      '1',
       900,
     );
+    expect(sender.send).toHaveBeenCalledWith('+1555', 'Code is 123456!');
+    expect(redis.del).not.toHaveBeenCalled();
   });
 
   it('uses the default template when none configured', async () => {
@@ -52,18 +52,17 @@ describe('SmsProcessor', () => {
     expect(sender.send).toHaveBeenCalledWith('+1555', 'Your code: 999');
   });
 
-  it('skips when a dedup marker is already present', async () => {
-    redis.get.mockResolvedValue('1');
+  it('skips when the dedup key is already claimed', async () => {
+    redis.acquireLock.mockResolvedValue(null);
     await processor.process(job({ to: '+1555', otp: '123456' }));
     expect(sender.send).not.toHaveBeenCalled();
-    expect(redis.setWithExpirySeconds).not.toHaveBeenCalled();
   });
 
-  it('does not set the dedup marker when the send throws', async () => {
+  it('releases the dedup claim when the send throws', async () => {
     sender.send.mockRejectedValue(new Error('gateway down'));
     await expect(
       processor.process(job({ to: '+1555', otp: '123456' })),
     ).rejects.toThrow('gateway down');
-    expect(redis.setWithExpirySeconds).not.toHaveBeenCalled();
+    expect(redis.del).toHaveBeenCalledWith('sms:sent:+1555:123456');
   });
 });

@@ -19,9 +19,9 @@ const CONCURRENCY = Math.max(
   Number(process.env.QUEUE_CONCURRENCY ?? DEFAULT_QUEUE_CONCURRENCY),
 );
 
-// Best-effort idempotency window: a job re-delivered after a successful send is
-// skipped instead of re-sending. Marker is set AFTER success so a real failure
-// still retries.
+// Idempotency window: the dedup key is claimed atomically (SET NX) BEFORE the
+// send so two concurrent re-deliveries can't both send, then released on failure
+// so a genuine failure still retries. A duplicate within the window is skipped.
 const SMS_DEDUP_TTL_SECONDS = 900;
 
 const DEFAULT_OTP_TEMPLATE = 'Your code: {otp}';
@@ -42,14 +42,24 @@ export class SmsProcessor extends WorkerHost implements OnApplicationShutdown {
   async process(job: Job<SmsOtpJob>): Promise<void> {
     const { to, otp } = job.data;
     const dedupKey = `sms:sent:${to}:${otp}`;
-    if (await this.redis.get(dedupKey)) {
+    const claimed = await this.redis.acquireLock(
+      dedupKey,
+      SMS_DEDUP_TTL_SECONDS,
+    );
+    if (!claimed) {
       this.logger.debug(`SMS to ${to} already sent; skipping duplicate`);
       return;
     }
     const template =
       this.config.get<string>('SMS_OTP_TEMPLATE') ?? DEFAULT_OTP_TEMPLATE;
-    await this.sender.send(to, template.replaceAll('{otp}', otp));
-    await this.redis.setWithExpirySeconds(dedupKey, '1', SMS_DEDUP_TTL_SECONDS);
+    try {
+      await this.sender.send(to, template.replaceAll('{otp}', otp));
+    } catch (err) {
+      // Release the claim so BullMQ's retry can re-send; otherwise a transient
+      // failure would be permanently deduped as "sent".
+      await this.redis.del(dedupKey);
+      throw err;
+    }
   }
 
   // void-ok: drain returns nothing once the worker has closed.
