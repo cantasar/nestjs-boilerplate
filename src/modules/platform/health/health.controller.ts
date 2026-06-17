@@ -1,23 +1,43 @@
-import { Controller, Get, HttpStatus, Inject, Res } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  HttpStatus,
+  Inject,
+  Res,
+  VERSION_NEUTRAL,
+} from '@nestjs/common';
 import { ApiExcludeController } from '@nestjs/swagger';
 import { Response } from 'express';
-import { DATABASE_TOKENS } from '../database/database.tokens';
+import { DATABASE_TOKENS } from '../../shared/database/database.tokens';
 import type { Pool } from 'pg';
-import { RedisService } from '../redis/redis.service';
+import { RedisService } from '../../shared/redis/redis.service';
+import { Public } from '../../shared/common/decorators/public.decorator';
 
 @ApiExcludeController()
-@Controller('health')
+@Public()
+@Controller({ path: 'health', version: VERSION_NEUTRAL })
 export class HealthController {
   constructor(
     @Inject(DATABASE_TOKENS.DRIZZLE_POOL) private readonly pool: Pool,
     private readonly redisService: RedisService,
   ) {}
 
-  @Get()
+  // Liveness: process is up. No dependency checks — used by orchestrators to
+  // decide whether to restart the container.
+  @Get('live')
   live(): { status: string; timestamp: string } {
     return { status: 'ok', timestamp: new Date().toISOString() };
   }
 
+  // General health: same lightweight signal as liveness, mounted at the root
+  // `/health` path for convenience.
+  @Get()
+  health(): { status: string; timestamp: string } {
+    return { status: 'ok', timestamp: new Date().toISOString() };
+  }
+
+  // Readiness: verifies downstream dependencies (DB + Redis) before the service
+  // is allowed to receive traffic.
   @Get('ready')
   async ready(@Res({ passthrough: true }) res: Response): Promise<{
     status: string;
