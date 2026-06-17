@@ -69,10 +69,12 @@ export class UserRepository {
     id: number,
     refreshToken: string | null,
   ): Promise<void> {
+    // void-ok
     await this.db.update(users).set({ refreshToken }).where(eq(users.id, id));
   }
 
   async updatePassword(email: string, passwordHash: string): Promise<void> {
+    // void-ok
     await this.db
       .update(users)
       .set({ password: passwordHash })

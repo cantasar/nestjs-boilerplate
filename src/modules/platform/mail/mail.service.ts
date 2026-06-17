@@ -20,6 +20,7 @@ export class MailService {
   }
 
   async sendOtpEmail(to: string, otp: string): Promise<void> {
+    // void-ok
     if (!this.client || !this.fromAddress || !this.fromName) {
       this.logger.warn(
         'Mail not configured (ZEPTOMAIL_*, MAIL_FROM_*). OTP not sent.',

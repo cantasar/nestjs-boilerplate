@@ -15,6 +15,7 @@ import { HttpExceptionFilter } from './modules/shared/common/filters/http-except
 import { setupSwagger } from './swagger/setup-swagger';
 
 async function bootstrap(): Promise<void> {
+  // void-ok
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     bufferLogs: true,
     bodyParser: false,

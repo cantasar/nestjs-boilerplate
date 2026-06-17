@@ -15,6 +15,7 @@ class RedisLifecycle implements OnModuleDestroy {
   constructor(@Inject(REDIS_CLIENT) private readonly client: Redis) {}
 
   async onModuleDestroy(): Promise<void> {
+    // void-ok
     await this.client.quit();
   }
 }

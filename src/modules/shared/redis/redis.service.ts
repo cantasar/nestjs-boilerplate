@@ -15,6 +15,7 @@ export class RedisService {
     value: string,
     ttlSeconds: number,
   ): Promise<void> {
+    // void-ok
     await this.client.set(key, value, 'EX', ttlSeconds);
   }
 

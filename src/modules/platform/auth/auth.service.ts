@@ -165,6 +165,7 @@ export class AuthService {
   }
 
   async forgotPassword(rawEmail: string): Promise<void> {
+    // void-ok
     const email = this.normalizeEmail(rawEmail);
     const user = await this.userRepository.findByEmail(email);
     if (!user) return;
@@ -188,6 +189,7 @@ export class AuthService {
     code: string,
     newPassword: string,
   ): Promise<void> {
+    // void-ok
     const email = this.normalizeEmail(rawEmail);
     const key = this.getResetPasswordKey(email);
     const storedCode = await this.redisService.get(key);
@@ -263,6 +265,7 @@ export class AuthService {
   }
 
   private async ensureForgotPasswordRateLimit(email: string): Promise<void> {
+    // void-ok
     const limitKey = `limit:forgot:${email}`;
     const requestCount = await this.redisService.incr(limitKey);
     if (requestCount === 1) {
@@ -291,6 +294,7 @@ export class AuthService {
     userId: number,
     refreshToken: string,
   ): Promise<void> {
+    // void-ok
     const hashedToken = await bcrypt.hash(
       refreshToken,
       AUTH_CONSTANTS.BCRYPT_SALT_ROUNDS,

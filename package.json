@@ -23,7 +23,11 @@
     "start:debug": "nest start --debug --watch",
     "start:prod": "node dist/main.js",
     "lint": "oxlint --fix src test",
-    "lint:check": "oxlint src test",
+    "lint:check": "oxlint src test && pnpm lint:no-double-cast && pnpm lint:no-prod-never && pnpm lint:no-untyped-promise && pnpm lint:no-multi-class-dto",
+    "lint:no-double-cast": "! grep -rn 'as unknown as' src --include='*.ts' --exclude='*.spec.ts' 2>/dev/null || (echo '✗ Forbidden: as unknown as double-cast in production code. Use proper types or a single cast. Tests may use double-cast for mock typing.' && exit 1)",
+    "lint:no-prod-never": "! grep -rn 'as never' src --include='*.ts' --exclude='*.spec.ts' 2>/dev/null || (echo '✗ Forbidden: as never cast in production code. Use literal union types instead.' && exit 1)",
+    "lint:no-untyped-promise": "node scripts/check-untyped-promise.mjs",
+    "lint:no-multi-class-dto": "for f in $(find src -name '*.dto.ts'); do [ \"$(grep -c 'export class' \"$f\")\" -gt 1 ] && { echo \"✗ Forbidden: more than one exported class in $f. One DTO per file (SoC).\"; exit 1; }; done; true",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",
@@ -116,6 +120,12 @@
     "*.{ts,tsx,mjs,cjs}": [
       "oxlint --fix",
       "oxfmt"
+    ],
+    "src/**/!(*.spec).ts": [
+      "bash -c '! grep -l \"as unknown as\" \"$@\" || (echo \"✗ Forbidden as unknown as double-cast in staged production files\" && exit 1)' --",
+      "bash -c '! grep -l \"as never\" \"$@\" || (echo \"✗ Forbidden as never cast in staged production files\" && exit 1)' --",
+      "node scripts/check-untyped-promise.mjs",
+      "bash -c 'for f in \"$@\"; do case \"$f\" in *.dto.ts) [ \"$(grep -c \"export class\" \"$f\")\" -gt 1 ] && { echo \"✗ Multiple exported classes in $f (one DTO per file)\"; exit 1; };; esac; done; true' --"
     ]
   }
 }
