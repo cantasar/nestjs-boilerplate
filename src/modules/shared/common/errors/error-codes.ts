@@ -90,3 +90,25 @@ export const USER_ERRORS: Record<UserErrorCode, ErrorCodeDefinition> = {
     message: 'User not found',
   },
 };
+
+/**
+ * Object-storage error codes (filename validation). Owned by the platform
+ * storage module; lives here so the registry stays the single catalog home.
+ */
+export enum StorageErrorCode {
+  FILENAME_REQUIRED = 'STORAGE_FILENAME_REQUIRED',
+  FILENAME_INVALID = 'STORAGE_FILENAME_INVALID',
+}
+
+export const STORAGE_ERRORS: Record<StorageErrorCode, ErrorCodeDefinition> = {
+  [StorageErrorCode.FILENAME_REQUIRED]: {
+    code: StorageErrorCode.FILENAME_REQUIRED,
+    httpStatus: HttpStatus.BAD_REQUEST,
+    message: 'A filename is required',
+  },
+  [StorageErrorCode.FILENAME_INVALID]: {
+    code: StorageErrorCode.FILENAME_INVALID,
+    httpStatus: HttpStatus.BAD_REQUEST,
+    message: 'Filename is invalid',
+  },
+};
