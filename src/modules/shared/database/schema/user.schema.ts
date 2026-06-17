@@ -6,7 +6,7 @@ import {
   boolean,
   timestamp,
 } from 'drizzle-orm/pg-core';
-import { authProviderEnum } from '../../users/enums/auth-provider.enum';
+import { authProviderEnum } from './enums/auth-provider.enum';
 
 export const users = pgTable('users', {
   id: serial('id').primaryKey(),

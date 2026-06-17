@@ -7,9 +7,9 @@ import {
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { AuthService } from './auth.service';
-import { UserRepository } from '../users/user.repository';
+import { UserRepository } from '../../shared/database/repositories/user.repository';
 import { MailService } from '../mail/mail.service';
-import { RedisService } from '../redis/redis.service';
+import { RedisService } from '../../shared/redis/redis.service';
 import * as bcrypt from 'bcrypt';
 
 jest.mock('bcrypt', () => ({

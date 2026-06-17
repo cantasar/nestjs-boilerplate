@@ -24,9 +24,11 @@ export const envSchema = z
     RATE_LIMIT_TTL: z.coerce.number().int().positive().default(60000),
     RATE_LIMIT_MAX: z.coerce.number().int().positive().default(100),
     CORS_ORIGIN: z.string().optional(),
+    BODY_PARSER_LIMIT: z.string().default('1mb'),
     SWAGGER_ENABLED: z.enum(['true', 'false']).optional(),
     SWAGGER_BASIC_AUTH_USER: z.string().optional(),
     SWAGGER_BASIC_AUTH_PASSWORD: z.string().optional(),
+    SWAGGER_SERVERS: z.string().optional(),
     GOOGLE_CLIENT_ID: z.string().optional(),
     APPLE_BUNDLE_ID: z.string().optional(),
   })

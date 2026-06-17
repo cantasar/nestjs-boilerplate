@@ -1,10 +1,10 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { eq, and, desc } from 'drizzle-orm';
-import { DATABASE_TOKENS } from '../database/database.tokens';
-import type { DrizzleDB } from '../database/database.types';
-import { todos } from '../database/schema/todo.schema';
-import type { Todo } from '../database/types/todo-select.type';
-import type { NewTodo } from '../database/types/todo-insert.type';
+import { DATABASE_TOKENS } from '../../shared/database/database.tokens';
+import type { DrizzleDB } from '../../shared/database/database.types';
+import { todos } from '../../shared/database/schema/todo.schema';
+import type { Todo } from '../../shared/database/types/todo-select.type';
+import type { NewTodo } from '../../shared/database/types/todo-insert.type';
 
 @Injectable()
 export class TodoRepository {

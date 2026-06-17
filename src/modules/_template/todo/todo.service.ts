@@ -4,7 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { TodoRepository } from './todo.repository';
-import type { Todo } from '../database/types/todo-select.type';
+import type { Todo } from '../../shared/database/types/todo-select.type';
 
 @Injectable()
 export class TodoService {

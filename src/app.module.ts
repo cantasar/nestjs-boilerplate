@@ -3,13 +3,14 @@ import { APP_GUARD } from '@nestjs/core';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { LoggerModule } from 'nestjs-pino';
-import { validateEnv } from './common/config/env.validation';
-import { CommonModule } from './common/common.module';
-import { DatabaseModule } from './database/database.module';
-import { RedisModule } from './redis/redis.module';
-import { AuthModule } from './auth/auth.module';
-import { TodosModule } from './todos/todos.module';
-import { HealthModule } from './health/health.module';
+import { validateEnv } from './modules/shared/common/config/env.validation';
+import { JwtAuthGuard } from './modules/shared/common/guards/jwt.guard';
+import { CommonModule } from './modules/shared/common/common.module';
+import { DatabaseModule } from './modules/shared/database/database.module';
+import { RedisModule } from './modules/shared/redis/redis.module';
+import { AuthModule } from './modules/platform/auth/auth.module';
+import { TodosModule } from './modules/_template/todo/todos.module';
+import { HealthModule } from './modules/platform/health/health.module';
 
 @Module({
   imports: [
@@ -47,6 +48,11 @@ import { HealthModule } from './health/health.module';
     {
       provide: APP_GUARD,
       useClass: ThrottlerGuard,
+    },
+    {
+      // Fail-closed: every route requires a valid JWT unless marked @Public().
+      provide: APP_GUARD,
+      useClass: JwtAuthGuard,
     },
   ],
 })

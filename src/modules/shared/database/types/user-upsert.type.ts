@@ -1,4 +1,4 @@
-import { AuthProvider } from '../../users/enums/auth-provider.enum';
+import { AuthProvider } from '../schema/enums/auth-provider.enum';
 
 export interface UpsertOAuthUser {
   email: string;

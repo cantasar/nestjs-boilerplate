@@ -11,13 +11,13 @@ import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
 import { randomInt } from 'crypto';
 import type * as jwt from 'jsonwebtoken';
-import { UserRepository } from '../users/user.repository';
+import { UserRepository } from '../../shared/database/repositories/user.repository';
 import { MailService } from '../mail/mail.service';
-import { RedisService } from '../redis/redis.service';
+import { RedisService } from '../../shared/redis/redis.service';
 import { AUTH_CONSTANTS } from './auth.constants';
-import { UpsertOAuthUser } from '../database/types';
+import { UpsertOAuthUser } from '../../shared/database/types';
 import { OAuth2Client } from 'google-auth-library';
-import { AuthProvider } from '../users/enums/auth-provider.enum';
+import { AuthProvider } from '../../shared/database/schema/enums/auth-provider.enum';
 import appleSignin from 'apple-signin-auth';
 
 interface SafeUser {

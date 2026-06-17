@@ -18,12 +18,12 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { TodoService } from './todo.service';
-import { JwtGuard } from '../common/guards/jwt.guard';
-import { GetUser } from '../common/decorators/get-user.decorator';
+import { JwtGuard } from '../../shared/common/guards/jwt.guard';
+import { GetUser } from '../../shared/common/decorators/get-user.decorator';
 import { CreateTodoDto } from './dto/create-todo.dto';
 import { UpdateTodoDto } from './dto/update-todo.dto';
 import { TodoResponseDto } from './dto/todo-response.dto';
-import type { Todo } from '../database/types/todo-select.type';
+import type { Todo } from '../../shared/database/types/todo-select.type';
 
 @ApiTags('Todos')
 @ApiBearerAuth()

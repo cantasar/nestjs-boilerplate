@@ -4,12 +4,12 @@ import {
   InternalServerErrorException,
 } from '@nestjs/common';
 import { eq } from 'drizzle-orm';
-import { DATABASE_TOKENS } from '../database/database.tokens';
-import type { DrizzleDB } from '../database/database.types';
-import { users } from '../database/schema/user.schema';
-import type { User } from '../database/types/user-select.type';
-import type { NewUser } from '../database/types/user-insert.type';
-import { UpsertOAuthUser } from '../database/types';
+import { DATABASE_TOKENS } from '../database.tokens';
+import type { DrizzleDB } from '../database.types';
+import { users } from '../schema/user.schema';
+import type { User } from '../types/user-select.type';
+import type { NewUser } from '../types/user-insert.type';
+import { UpsertOAuthUser } from '../types';
 
 @Injectable()
 export class UserRepository {

@@ -6,8 +6,8 @@ import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { MailModule } from '../mail/mail.module';
-import { RedisModule } from '../redis/redis.module';
-import { UsersModule } from '../users/users.module';
+import { RedisModule } from '../../shared/redis/redis.module';
+import { UsersModule } from '../../shared/database/users.module';
 
 @Module({
   imports: [
