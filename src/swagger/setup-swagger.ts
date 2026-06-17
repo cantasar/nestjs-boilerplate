@@ -6,6 +6,7 @@ import { timingSafeEqual } from 'crypto';
 import type { Express, NextFunction, Request, Response } from 'express';
 import { UserRole } from '../modules/shared/common/enums/user-role.enum';
 import { AuthProvider } from '../modules/shared/database/schema/enums/auth-provider.enum';
+import { ALL_ERROR_CODES } from '../modules/shared/common/errors/error-registry';
 
 const DOCS_PATH = 'docs' as const;
 
@@ -321,6 +322,15 @@ function registerEnumSchemas(document: {
       type: 'string',
       enum: Object.values(enumObj),
       description: `${name} enum values`,
+    };
+  }
+  // Surface every stable error code from the registry as a single enum schema so
+  // clients can codegen an exhaustive `ErrorCode` union for `error.code`.
+  if (!document.components.schemas.ErrorCode) {
+    document.components.schemas.ErrorCode = {
+      type: 'string',
+      enum: [...ALL_ERROR_CODES],
+      description: 'Every stable machine-readable error code (error.code).',
     };
   }
 }
