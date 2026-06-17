@@ -1,8 +1,10 @@
 import type { ErrorCodeDefinition } from './error-code.types';
 import {
   AUTH_ERRORS,
+  BUG_REPORT_ERRORS,
   COMMON_ERRORS,
   CommonErrorCode,
+  LEGAL_DOCUMENTS_ERRORS,
   MEDIA_ERRORS,
   STORAGE_ERRORS,
   USER_ERRORS,
@@ -19,6 +21,8 @@ const CATALOGS: readonly Record<string, ErrorCodeDefinition>[] = [
   USER_ERRORS,
   STORAGE_ERRORS,
   MEDIA_ERRORS,
+  LEGAL_DOCUMENTS_ERRORS,
+  BUG_REPORT_ERRORS,
 ];
 
 /**

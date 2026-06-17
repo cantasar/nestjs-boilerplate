@@ -67,6 +67,10 @@ export const envSchema = z
       .int()
       .positive()
       .default(500),
+    // Bug-report attachments — opt-in. When 'true' the admin bug-reports feature
+    // surfaces media assets bound via the generic entity-ref ('bug_report', id)
+    // through the ASSET_PORT. Default 'false' → no attachments are listed.
+    BUG_REPORT_ATTACHMENTS_ENABLED: z.enum(['true', 'false']).default('false'),
   })
   .catchall(z.unknown())
   .superRefine((env, ctx) => {

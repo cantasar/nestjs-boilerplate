@@ -134,3 +134,49 @@ export const MEDIA_ERRORS: Record<MediaErrorCode, ErrorCodeDefinition> = {
     message: 'Media asset {id} not found',
   },
 };
+
+/**
+ * Legal-document error codes. Owned by the user legal-documents/consent
+ * features; lives here so the registry stays the single catalog home. The
+ * public `:slug` route quotes the slug in its message, so it is a distinct code
+ * from the generic NOT_FOUND (kept for the future admin lookups).
+ */
+export enum LegalDocumentErrorCode {
+  NOT_FOUND = 'LEGAL_DOCUMENT_NOT_FOUND',
+  NOT_FOUND_BY_SLUG = 'LEGAL_DOCUMENT_NOT_FOUND_BY_SLUG',
+}
+
+export const LEGAL_DOCUMENTS_ERRORS: Record<
+  LegalDocumentErrorCode,
+  ErrorCodeDefinition
+> = {
+  [LegalDocumentErrorCode.NOT_FOUND]: {
+    code: LegalDocumentErrorCode.NOT_FOUND,
+    httpStatus: HttpStatus.NOT_FOUND,
+    message: 'Legal document not found',
+  },
+  [LegalDocumentErrorCode.NOT_FOUND_BY_SLUG]: {
+    code: LegalDocumentErrorCode.NOT_FOUND_BY_SLUG,
+    httpStatus: HttpStatus.NOT_FOUND,
+    message: "Legal document '{slug}' not found",
+  },
+};
+
+/**
+ * Bug-report error codes. Owned by the admin bug-reports feature; lives here so
+ * the registry stays the single catalog home.
+ */
+export enum BugReportErrorCode {
+  NOT_FOUND = 'BUG_REPORT_NOT_FOUND',
+}
+
+export const BUG_REPORT_ERRORS: Record<
+  BugReportErrorCode,
+  ErrorCodeDefinition
+> = {
+  [BugReportErrorCode.NOT_FOUND]: {
+    code: BugReportErrorCode.NOT_FOUND,
+    httpStatus: HttpStatus.NOT_FOUND,
+    message: 'Bug report {id} not found',
+  },
+};

@@ -7,4 +7,5 @@ export enum AuditAction {
   CREATE = 'create',
   UPDATE = 'update',
   DELETE = 'delete',
+  SOFT_DELETE = 'soft_delete',
 }

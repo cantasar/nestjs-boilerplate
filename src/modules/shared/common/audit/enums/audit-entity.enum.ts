@@ -6,4 +6,5 @@
 export enum AuditEntity {
   USER = 'user',
   RESOURCE = 'resource',
+  BUG_REPORT = 'bug_report',
 }
