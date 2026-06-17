@@ -5,3 +5,7 @@ export * from './todo-select.type';
 export * from './todo-insert.type';
 export * from './audit-log-select.type';
 export * from './audit-log-insert.type';
+export * from './notification-select.type';
+export * from './notification-insert.type';
+export * from './media-asset-select.type';
+export * from './media-asset-insert.type';
