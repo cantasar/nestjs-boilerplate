@@ -2,6 +2,8 @@ import { Module, RequestMethod } from '@nestjs/common';
 import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
+import { EventEmitterModule } from '@nestjs/event-emitter';
+import { ScheduleModule } from '@nestjs/schedule';
 import { LoggerModule } from 'nestjs-pino';
 import { validateEnv } from './modules/shared/common/config/env.validation';
 import { JwtAuthGuard } from './modules/shared/common/guards/jwt.guard';
@@ -13,6 +15,12 @@ import { AuditInterceptor } from './modules/shared/common/audit/audit.intercepto
 import { DatabaseModule } from './modules/shared/database/database.module';
 import { RedisModule } from './modules/shared/redis/redis.module';
 import { AuthModule } from './modules/platform/auth/auth.module';
+import { QueueModule } from './modules/platform/queue/queue.module';
+import { ExampleQueueModule } from './modules/platform/queue/example/example-queue.module';
+import { EventsModule } from './modules/platform/events/events.module';
+import { MailModule } from './modules/platform/mail/mail.module';
+import { SmsModule } from './modules/platform/sms/sms.module';
+import { StorageModule } from './modules/platform/storage/storage.module';
 import { TodosModule } from './modules/_template/todo/todos.module';
 import { HealthModule } from './modules/platform/health/health.module';
 
@@ -21,6 +29,13 @@ import { HealthModule } from './modules/platform/health/health.module';
     ConfigModule.forRoot({
       isGlobal: true,
       validate: validateEnv,
+    }),
+    ScheduleModule.forRoot(),
+    EventEmitterModule.forRoot({
+      wildcard: false,
+      delimiter: '.',
+      maxListeners: 20,
+      verboseMemoryLeak: false,
     }),
     LoggerModule.forRoot({
       forRoutes: [{ path: '*path', method: RequestMethod.ALL }],
@@ -45,6 +60,12 @@ import { HealthModule } from './modules/platform/health/health.module';
     DatabaseModule,
     AuditModule,
     RedisModule,
+    QueueModule,
+    ExampleQueueModule,
+    EventsModule,
+    StorageModule,
+    MailModule,
+    SmsModule,
     AuthModule,
     TodosModule,
     HealthModule,
