@@ -24,6 +24,9 @@ import { StorageModule } from './modules/platform/storage/storage.module';
 import { MediaModule } from './modules/platform/media/media.module';
 import { NotificationsModule } from './modules/platform/notifications/notifications.module';
 import { TodosModule } from './modules/_template/todo/todos.module';
+import { AdminModule } from './modules/admin/admin.module';
+import { AuthenticatedConsentModule } from './modules/user/consent/authenticated-consent.module';
+import { PublicLegalDocumentsModule } from './modules/user/legal-documents/public-legal-documents.module';
 import { HealthModule } from './modules/platform/health/health.module';
 
 @Module({
@@ -72,6 +75,9 @@ import { HealthModule } from './modules/platform/health/health.module';
     NotificationsModule,
     AuthModule,
     TodosModule,
+    AdminModule,
+    AuthenticatedConsentModule,
+    PublicLegalDocumentsModule,
     HealthModule,
   ],
   providers: [
