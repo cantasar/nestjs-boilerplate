@@ -3,6 +3,7 @@ import {
   AUTH_ERRORS,
   COMMON_ERRORS,
   CommonErrorCode,
+  MEDIA_ERRORS,
   STORAGE_ERRORS,
   USER_ERRORS,
 } from './error-codes';
@@ -17,6 +18,7 @@ const CATALOGS: readonly Record<string, ErrorCodeDefinition>[] = [
   AUTH_ERRORS,
   USER_ERRORS,
   STORAGE_ERRORS,
+  MEDIA_ERRORS,
 ];
 
 /**

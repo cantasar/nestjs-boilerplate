@@ -21,6 +21,9 @@ export const envSchema = z
     QUEUE_CONCURRENCY: z.coerce.number().int().positive().default(5),
     QUEUE_DEFAULT_ATTEMPTS: z.coerce.number().int().positive().default(3),
     QUEUE_DEFAULT_BACKOFF_MS: z.coerce.number().int().positive().default(1000),
+    // Media variant generation (resize/thumbnail) worker concurrency. Kept low
+    // by default since Sharp is CPU-bound; read from process.env at decoration.
+    MEDIA_QUEUE_CONCURRENCY: z.coerce.number().int().positive().default(2),
     ZEPTOMAIL_URL: z.string().url().optional(),
     ZEPTOMAIL_TOKEN: z.string().optional(),
     MAIL_FROM_ADDRESS: z.string().email().optional(),
@@ -54,6 +57,16 @@ export const envSchema = z
     SMS_TO_PARAM: z.string().optional(),
     SMS_MESSAGE_PARAM: z.string().optional(),
     SMS_HEADER_PARAM: z.string().optional(),
+    // Push (OneSignal) — feature-flagged by ONESIGNAL_APP_ID. When unset the
+    // push sender stays dormant and broadcast/transactional pushes no-op.
+    ONESIGNAL_APP_ID: z.string().optional(),
+    ONESIGNAL_REST_API_KEY: z.string().optional(),
+    // Broadcast fan-out chunk size: recipients per queued job.
+    NOTIFICATION_BROADCAST_CHUNK_SIZE: z.coerce
+      .number()
+      .int()
+      .positive()
+      .default(500),
   })
   .catchall(z.unknown())
   .superRefine((env, ctx) => {
@@ -71,6 +84,15 @@ export const envSchema = z
         code: z.ZodIssueCode.custom,
         path: ['SMS_USER'],
         message: 'SMS_USER and SMS_PASS are required when SMS_API_URL is set',
+      });
+    }
+    // Push is opt-in: enabling it (ONESIGNAL_APP_ID set) requires the REST key.
+    if (env.ONESIGNAL_APP_ID && !env.ONESIGNAL_REST_API_KEY) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['ONESIGNAL_REST_API_KEY'],
+        message:
+          'ONESIGNAL_REST_API_KEY is required when ONESIGNAL_APP_ID is set',
       });
     }
   });

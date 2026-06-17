@@ -112,3 +112,25 @@ export const STORAGE_ERRORS: Record<StorageErrorCode, ErrorCodeDefinition> = {
     message: 'Filename is invalid',
   },
 };
+
+/**
+ * Media-asset error codes. Owned by the platform media module; lives here so the
+ * registry stays the single catalog home.
+ */
+export enum MediaErrorCode {
+  FILE_SIZE_EXCEEDS_LIMIT = 'MEDIA_FILE_SIZE_EXCEEDS_LIMIT',
+  ASSET_NOT_FOUND = 'MEDIA_ASSET_NOT_FOUND',
+}
+
+export const MEDIA_ERRORS: Record<MediaErrorCode, ErrorCodeDefinition> = {
+  [MediaErrorCode.FILE_SIZE_EXCEEDS_LIMIT]: {
+    code: MediaErrorCode.FILE_SIZE_EXCEEDS_LIMIT,
+    httpStatus: HttpStatus.BAD_REQUEST,
+    message: 'File size {fileSize} exceeds the limit of {maxFileSize} bytes',
+  },
+  [MediaErrorCode.ASSET_NOT_FOUND]: {
+    code: MediaErrorCode.ASSET_NOT_FOUND,
+    httpStatus: HttpStatus.NOT_FOUND,
+    message: 'Media asset {id} not found',
+  },
+};

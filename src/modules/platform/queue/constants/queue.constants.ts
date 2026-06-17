@@ -19,4 +19,6 @@ export const QUEUE_NAMES = {
   EXAMPLE: 'example',
   MAIL: 'mail-send',
   SMS: 'sms-send',
+  NOTIFICATION_BROADCAST: 'notification-broadcast',
+  MEDIA_PROCESSING: 'media-processing',
 } as const;
