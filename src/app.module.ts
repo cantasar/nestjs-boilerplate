@@ -1,11 +1,12 @@
 import { Module, RequestMethod } from '@nestjs/common';
-import { APP_GUARD } from '@nestjs/core';
+import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { LoggerModule } from 'nestjs-pino';
 import { validateEnv } from './modules/shared/common/config/env.validation';
 import { JwtAuthGuard } from './modules/shared/common/guards/jwt.guard';
 import { CommonModule } from './modules/shared/common/common.module';
+import { ResponseTransformInterceptor } from './modules/shared/common/interceptors/response-transform.interceptor';
 import { DatabaseModule } from './modules/shared/database/database.module';
 import { RedisModule } from './modules/shared/redis/redis.module';
 import { AuthModule } from './modules/platform/auth/auth.module';
@@ -45,6 +46,14 @@ import { HealthModule } from './modules/platform/health/health.module';
     HealthModule,
   ],
   providers: [
+    {
+      // Wrap every success response in the v1 envelope. Registered first so it
+      // sits OUTERMOST among interceptors — when audit (Batch 2) is added after
+      // this, audit runs closer to the handler and sees the raw result before
+      // this interceptor reshapes it.
+      provide: APP_INTERCEPTOR,
+      useClass: ResponseTransformInterceptor,
+    },
     {
       provide: APP_GUARD,
       useClass: ThrottlerGuard,
