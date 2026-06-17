@@ -21,6 +21,8 @@ import { EventsModule } from './modules/platform/events/events.module';
 import { MailModule } from './modules/platform/mail/mail.module';
 import { SmsModule } from './modules/platform/sms/sms.module';
 import { StorageModule } from './modules/platform/storage/storage.module';
+import { MediaModule } from './modules/platform/media/media.module';
+import { NotificationsModule } from './modules/platform/notifications/notifications.module';
 import { TodosModule } from './modules/_template/todo/todos.module';
 import { HealthModule } from './modules/platform/health/health.module';
 
@@ -64,8 +66,10 @@ import { HealthModule } from './modules/platform/health/health.module';
     ExampleQueueModule,
     EventsModule,
     StorageModule,
+    MediaModule,
     MailModule,
     SmsModule,
+    NotificationsModule,
     AuthModule,
     TodosModule,
     HealthModule,
