@@ -6,6 +6,7 @@ import {
   HttpStatus,
   Logger,
 } from '@nestjs/common';
+import * as Sentry from '@sentry/nestjs';
 import type { Request, Response } from 'express';
 import { DomainException } from '../errors/domain.exception';
 import { CommonErrorCode } from '../errors/error-codes';
@@ -131,6 +132,12 @@ export class HttpExceptionFilter implements ExceptionFilter {
       const detail =
         exception instanceof Error ? exception.message : String(exception);
       this.logger.error(`${context} | ${detail}`, stack);
+      // Mirror unexpected 5xx/unhandled errors to Sentry. Only when the SDK is
+      // initialized (SENTRY_DSN set); a no-op otherwise. Expected 4xx are logged
+      // as warnings below and never reported, to keep Issues/quota clean.
+      if (Sentry.isInitialized()) {
+        Sentry.captureException(exception);
+      }
     } else {
       this.logger.warn(context);
     }

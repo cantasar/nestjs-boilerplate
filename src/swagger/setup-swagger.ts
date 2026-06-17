@@ -202,6 +202,7 @@ export function setupSwagger(
     deepScanRoutes: true,
   });
   registerEnumSchemas(fullDocument);
+  registerErrorCodeSchema(fullDocument);
   const mobileDocument = filterDocumentByTags(fullDocument, MOBILE_TAGS);
 
   const mountDoc = (
@@ -330,15 +331,22 @@ function registerEnumSchemas(document: {
       description: `${name} enum values`,
     };
   }
-  // Surface every stable error code from the registry as a single enum schema so
-  // clients can codegen an exhaustive `ErrorCode` union for `error.code`.
-  if (!document.components.schemas.ErrorCode) {
-    document.components.schemas.ErrorCode = {
-      type: 'string',
-      enum: [...ALL_ERROR_CODES],
-      description: 'Every stable machine-readable error code (error.code).',
-    };
-  }
+}
+
+// Surface every stable error code from the registry as a single `ErrorCode`
+// string enum so clients can codegen an exhaustive union for `error.code`. The
+// catalog is documented once in components.schemas.
+function registerErrorCodeSchema(document: {
+  components?: { schemas?: Record<string, unknown> };
+}): void {
+  document.components = document.components ?? {};
+  document.components.schemas = document.components.schemas ?? {};
+  if (document.components.schemas.ErrorCode) return;
+  document.components.schemas.ErrorCode = {
+    type: 'string',
+    enum: [...ALL_ERROR_CODES],
+    description: 'Every stable machine-readable error code (error.code).',
+  };
 }
 
 function getBasicAuth(

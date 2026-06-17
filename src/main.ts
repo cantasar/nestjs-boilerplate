@@ -1,3 +1,4 @@
+import './instrument'; // Sentry — must be the first import (it loads dotenv too).
 import { join } from 'node:path';
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';

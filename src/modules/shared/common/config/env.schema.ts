@@ -71,6 +71,18 @@ export const envSchema = z
     // surfaces media assets bound via the generic entity-ref ('bug_report', id)
     // through the ASSET_PORT. Default 'false' → no attachments are listed.
     BUG_REPORT_ATTACHMENTS_ENABLED: z.enum(['true', 'false']).default('false'),
+    // Sentry — opt-in, feature-flagged by SENTRY_DSN. When unset the SDK stays a
+    // no-op (see src/instrument.ts). Sample rates are read raw in instrument.ts
+    // (it runs before Zod); these defaults document/echo the same fallbacks.
+    SENTRY_DSN: z.string().url().optional(),
+    SENTRY_ENVIRONMENT: z.string().optional(),
+    SENTRY_RELEASE: z.string().optional(),
+    SENTRY_TRACES_SAMPLE_RATE: z.coerce.number().min(0).max(1).default(0.1),
+    SENTRY_PROFILE_SESSION_SAMPLE_RATE: z.coerce
+      .number()
+      .min(0)
+      .max(1)
+      .default(1),
   })
   .catchall(z.unknown())
   .superRefine((env, ctx) => {

@@ -32,6 +32,7 @@ import {
   ApiOkEnvelope,
   ApiPaginatedEnvelope,
 } from '../../shared/common/decorators/api-common-responses.decorator';
+import { ApiIntIdParam } from '../../shared/common/decorators/api-params.decorator';
 import type { Paginated } from '../../shared/common/types/paginated.type';
 import type { Todo } from '../../shared/database/types/todo-select.type';
 
@@ -65,6 +66,7 @@ export class TodoController {
 
   @Get(':id')
   @ApiOperation({ summary: 'Get a todo by id' })
+  @ApiIntIdParam('Todo ID')
   @ApiOkEnvelope(TodoResponseDto, { description: 'Todo detail' })
   @ApiResponse({ status: 404, description: 'Todo not found' })
   findOne(
