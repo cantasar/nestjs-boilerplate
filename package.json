@@ -1,10 +1,10 @@
 {
   "name": "nestjs-boilerplate",
-  "version": "0.0.1",
+  "version": "1.0.0",
   "private": false,
   "packageManager": "pnpm@9.15.9",
   "engines": {
-    "node": ">=22",
+    "node": ">=24",
     "pnpm": ">=9"
   },
   "license": "UNLICENSED",
@@ -15,32 +15,46 @@
     "prepare": "husky",
     "db:generate": "drizzle-kit generate --config=drizzle.config.ts",
     "db:migrate": "drizzle-kit migrate --config=drizzle.config.ts",
+    "db:migrate:run": "node dist/src/migrate.js",
     "db:pull": "drizzle-kit pull --config=drizzle.config.ts",
     "db:push": "drizzle-kit push --config=drizzle.config.ts",
     "db:studio": "drizzle-kit studio --config=drizzle.config.ts",
     "start": "nest start",
     "start:dev": "nest start --watch",
     "start:debug": "nest start --debug --watch",
-    "start:prod": "node dist/main.js",
+    "start:prod": "node dist/src/main.js",
     "lint": "oxlint --fix src test",
-    "lint:check": "oxlint src test",
+    "lint:check": "oxlint src test && pnpm lint:no-double-cast && pnpm lint:no-prod-never && pnpm lint:no-untyped-promise && pnpm lint:no-multi-class-dto",
+    "lint:no-double-cast": "! grep -rn 'as unknown as' src --include='*.ts' --exclude='*.spec.ts' 2>/dev/null || (echo '✗ Forbidden: as unknown as double-cast in production code. Use proper types or a single cast. Tests may use double-cast for mock typing.' && exit 1)",
+    "lint:no-prod-never": "! grep -rn 'as never' src --include='*.ts' --exclude='*.spec.ts' 2>/dev/null || (echo '✗ Forbidden: as never cast in production code. Use literal union types instead.' && exit 1)",
+    "lint:no-untyped-promise": "node scripts/check-untyped-promise.mjs",
+    "lint:no-multi-class-dto": "for f in $(find src -name '*.dto.ts'); do [ \"$(grep -c 'export class' \"$f\")\" -gt 1 ] && { echo \"✗ Forbidden: more than one exported class in $f. One DTO per file (SoC).\"; exit 1; }; done; true",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
-    "test:e2e": "jest --config ./test/jest-e2e.json"
+    "test:e2e": "jest --config ./test/jest-e2e.json",
+    "docs:generate": "node scripts/generate-api-docs.mjs"
   },
   "dependencies": {
+    "@google-cloud/storage": "^7.21.0",
+    "@nestjs/bullmq": "^11.0.4",
     "@nestjs/common": "^11.1.17",
     "@nestjs/config": "^4.0.3",
     "@nestjs/core": "^11.1.17",
+    "@nestjs/event-emitter": "^3.1.0",
     "@nestjs/jwt": "^11.0.2",
     "@nestjs/passport": "^11.0.5",
     "@nestjs/platform-express": "^11.1.17",
+    "@nestjs/schedule": "^6.1.3",
     "@nestjs/swagger": "^11.2.6",
     "@nestjs/throttler": "^6.5.0",
+    "@onesignal/node-onesignal": "^5.8.0",
+    "@sentry/nestjs": "^10.58.0",
+    "@sentry/profiling-node": "^10.58.0",
     "apple-signin-auth": "^2.0.0",
     "bcrypt": "^6.0.0",
+    "bullmq": "^5.78.1",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.4",
     "drizzle-orm": "^0.45.1",
@@ -59,6 +73,8 @@
     "zod": "^3.25.76"
   },
   "devDependencies": {
+    "@commitlint/cli": "^19.6.1",
+    "@commitlint/config-conventional": "^19.6.0",
     "@nestjs/cli": "^11.0.16",
     "@nestjs/schematics": "^11.0.9",
     "@nestjs/testing": "^11.1.17",
@@ -113,6 +129,12 @@
     "*.{ts,tsx,mjs,cjs}": [
       "oxlint --fix",
       "oxfmt"
+    ],
+    "src/**/!(*.spec).ts": [
+      "bash -c '! grep -l \"as unknown as\" \"$@\" || (echo \"✗ Forbidden as unknown as double-cast in staged production files\" && exit 1)' --",
+      "bash -c '! grep -l \"as never\" \"$@\" || (echo \"✗ Forbidden as never cast in staged production files\" && exit 1)' --",
+      "node scripts/check-untyped-promise.mjs",
+      "bash -c 'for f in \"$@\"; do case \"$f\" in *.dto.ts) [ \"$(grep -c \"export class\" \"$f\")\" -gt 1 ] && { echo \"✗ Multiple exported classes in $f (one DTO per file)\"; exit 1; };; esac; done; true' --"
     ]
   }
 }

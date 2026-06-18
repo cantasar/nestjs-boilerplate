@@ -1,0 +1,125 @@
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Param,
+  ParseIntPipe,
+  Patch,
+  Post,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
+import {
+  ApiBearerAuth,
+  ApiOperation,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
+import { TodoService } from './todo.service';
+import { Audit } from '../../shared/common/audit/audit.decorator';
+import { AuditAction } from '../../shared/common/audit/enums/audit-action.enum';
+import { AuditEntity } from '../../shared/common/audit/enums/audit-entity.enum';
+import { JwtGuard } from '../../shared/common/guards/jwt.guard';
+import { GetUser } from '../../shared/common/decorators/get-user.decorator';
+import { CreateTodoDto } from './dto/create-todo.dto';
+import { UpdateTodoDto } from './dto/update-todo.dto';
+import { TodoResponseDto } from './dto/todo-response.dto';
+import { PaginationQueryDto } from '../../shared/common/dto/pagination-query.dto';
+import {
+  ApiOkEnvelope,
+  ApiPaginatedEnvelope,
+} from '../../shared/common/decorators/api-common-responses.decorator';
+import { ApiIntIdParam } from '../../shared/common/decorators/api-params.decorator';
+import type { Paginated } from '../../shared/common/types/paginated.type';
+import type { Todo } from '../../shared/database/types/todo-select.type';
+
+@ApiTags('Todos')
+@ApiBearerAuth()
+@UseGuards(JwtGuard)
+@Controller({ path: 'todos', version: '1' })
+export class TodoController {
+  constructor(private readonly todoService: TodoService) {}
+
+  @Get()
+  @ApiOperation({ summary: 'List todos for the authenticated user' })
+  @ApiResponse({
+    status: 200,
+    description: 'Todo list',
+    type: [TodoResponseDto],
+  })
+  findAll(@GetUser('id') userId: number): Promise<Todo[]> {
+    return this.todoService.findAll(userId);
+  }
+
+  @Get('paginated')
+  @ApiOperation({ summary: 'List todos (paginated, envelope demo)' })
+  @ApiPaginatedEnvelope(TodoResponseDto, { description: 'Paginated todo list' })
+  findPage(
+    @Query() query: PaginationQueryDto,
+    @GetUser('id') userId: number,
+  ): Promise<Paginated<Todo>> {
+    return this.todoService.findPage(userId, query.page, query.limit);
+  }
+
+  @Get(':id')
+  @ApiOperation({ summary: 'Get a todo by id' })
+  @ApiIntIdParam('Todo ID')
+  @ApiOkEnvelope(TodoResponseDto, { description: 'Todo detail' })
+  @ApiResponse({ status: 404, description: 'Todo not found' })
+  findOne(
+    @Param('id', ParseIntPipe) id: number,
+    @GetUser('id') userId: number,
+  ): Promise<Todo> {
+    return this.todoService.findOne(id, userId);
+  }
+
+  @Post()
+  @ApiOperation({ summary: 'Create a todo' })
+  @ApiResponse({
+    status: 201,
+    description: 'Todo created',
+    type: TodoResponseDto,
+  })
+  // Reference @Audit usage: a CREATE has no prior state, so no loadBefore — the
+  // entityId is read from the returned row's `id` (the interceptor's default),
+  // and the raw created Todo becomes the `after` snapshot.
+  @Audit({ entity: AuditEntity.RESOURCE, action: AuditAction.CREATE })
+  create(
+    @Body() dto: CreateTodoDto,
+    @GetUser('id') userId: number,
+  ): Promise<Todo> {
+    return this.todoService.create(userId, dto.title);
+  }
+
+  @Patch(':id')
+  @ApiOperation({ summary: 'Update a todo' })
+  @ApiResponse({
+    status: 200,
+    description: 'Todo updated',
+    type: TodoResponseDto,
+  })
+  @ApiResponse({ status: 404, description: 'Todo not found' })
+  update(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdateTodoDto,
+    @GetUser('id') userId: number,
+  ): Promise<Todo> {
+    return this.todoService.update(id, userId, dto);
+  }
+
+  @Delete(':id')
+  @ApiOperation({ summary: 'Delete a todo' })
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiResponse({ status: 204, description: 'Todo deleted' })
+  @ApiResponse({ status: 404, description: 'Todo not found' })
+  async remove(
+    @Param('id', ParseIntPipe) id: number,
+    @GetUser('id') userId: number,
+  ): Promise<void> {
+    // void-ok
+    await this.todoService.remove(id, userId);
+  }
+}

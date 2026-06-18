@@ -1,98 +1,85 @@
 # Contributing Guide
 
-This document defines working rules and quality standards for contributors who want to improve this NestJS template.
+Working rules and quality standards for contributors. This is a **template**: changes should keep the foundation easy to clone, fill in, and maintain. Architecture and conventions live in [CLAUDE.md](CLAUDE.md) and [AGENTS.md](AGENTS.md); the day-to-day dev flow is in [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).
 
-## 1) General Principles
+## General principles
 
-- Since this repository is a **template**, the goal of changes is to provide a foundation that works with minimal effort when copied to new projects, and is understandable and maintainable.
-- Backward compatibility should be preserved as much as possible. Breaking changes must be clearly stated.
-- Security and privacy are priorities. Real keys/passwords/secrets must never be added to the repository.
+- Preserve backward compatibility where possible; state breaking changes clearly.
+- Never commit real keys, passwords, or secrets. `.env` is git-ignored; keep `.env.example` current.
+- Keep changes small and focused. Every changed line should trace to the stated purpose.
 
-## 2) Branch Policy
+## Branch & merge etiquette
 
-- **Direct push to `main` branch is prohibited.**
-- All changes are made via **feature branches** and merged to `main` via **Pull Request (PR)**.
-- Branch naming suggestion:
-  - `feature/<short-description>`
-  - `fix/<short-description>`
-  - `chore/<short-description>`
-  - `docs/<short-description>`
+- All changes go through **feature branches** and merge via Pull Request — no direct pushes to shared branches.
+- Suggested naming: `feat/<desc>`, `fix/<desc>`, `chore/<desc>`, `docs/<desc>`.
+- Don't run database migration commands on feature branches; migrations are decided at merge/deploy time.
+- A PR should describe its purpose, scope (modules/files touched), checks run, migration impact, and any breaking change.
 
-## 3) Issue and PR Process
+## Commit messages — Conventional Commits
 
-- Opening an **Issue** before major changes is recommended.
-- PRs should be small and focused when possible.
-- PRs must include the following information:
-  - Purpose of the change
-  - Scope (which modules/files are affected)
-  - Checks run (lint/test)
-  - Migration impact if any
-  - Breaking change description if any
+Commit messages follow [Conventional Commits](https://www.conventionalcommits.org/) and are validated by a **commitlint `commit-msg` hook** (`@commitlint/config-conventional`). Use `type(scope): subject`:
 
-## 4) Coding Standards
+```
+feat(auth): add phone OTP login
+fix(notifications): handle empty broadcast batch
+docs(readme): refresh ports table
+```
 
-- The project must follow **TypeScript** and **NestJS** best practices.
-- Code style:
-  - Oxfmt is used for formatting.
-  - Oxlint rules are accepted as valid for linting.
-- Naming:
-  - Modules `*.module.ts`, services `*.service.ts`, controllers `*.controller.ts`.
-- Separation of concerns:
-  - Controllers should be kept thin; business rules belong in the service layer.
-  - Common structures should be grouped under `src/common`.
+Common types: `feat`, `fix`, `docs`, `chore`, `refactor`, `test`, `perf`, `build`, `ci`.
 
-## 5) Required Checks
+## Coding standards & SoC
 
-Before opening a PR, ensure the following commands run successfully:
+- Follow TypeScript / NestJS best practices; Oxfmt formats and Oxlint lints.
+- Naming: `*.module.ts`, `*.service.ts`, `*.controller.ts`, `*.repository.ts`, `*.dto.ts`.
+- **Separation of concerns:** controllers thin, business logic in services, persistence in repositories, pure entity→DTO mapping in `mappers/`. Place code in the matching `src/modules/<group>/` per [CLAUDE.md §5](CLAUDE.md).
+- **One DTO per file** — at most one exported class per `*.dto.ts` (enforced).
+- Reach external dependencies through their **port**, never the vendor SDK directly.
+
+### TypeScript discipline guards
+
+In addition to Oxlint, four guards run via `pnpm lint:check` and the `lint-staged` pre-commit hook:
+
+| Guard | Rule |
+|-------|------|
+| `lint:no-double-cast` | No `as unknown as` in production code (specs may use it for mocks) |
+| `lint:no-prod-never` | No `as never` cast — use literal union types |
+| `lint:no-untyped-promise` | No floating/untyped promises; mark intentional ones with `// void-ok` |
+| `lint:no-multi-class-dto` | One exported class per `*.dto.ts` |
+
+## Required checks
+
+Before opening a PR, ensure these pass:
 
 ```bash
-pnpm lint
+pnpm build
+pnpm lint:check
+pnpm format:check
 pnpm test
 ```
 
-Additionally, depending on the change:
+Run `pnpm test:e2e` when the change affects request/response behavior. Lint and format are also enforced on commit by Husky + lint-staged, but run them yourself first.
 
-```bash
-pnpm test:e2e
-```
+## Configuration & secrets
 
-## 6) Commit Messages
+When adding an environment variable:
 
-For consistency in commit messages, the following format is recommended:
+- Add a documented example to `.env.example`.
+- Add the validation rule to the Zod schema in `src/modules/shared/common/config/env.schema.ts` (wired through `env.validation.ts`).
+- Make integrations conditional/feature-flagged where possible, so the boilerplate boots without them.
 
-- `feat: ...`
-- `fix: ...`
-- `docs: ...`
-- `chore: ...`
-- `refactor: ...`
-- `test: ...`
+## Database & migrations
 
-Example:
+- Schema changes follow the Drizzle structure under `shared/database/schema/`.
+- Migration files are not committed; if a change needs one, note it in the PR and generate it at merge/deploy time (`pnpm db:generate`).
 
-- `feat: add healthcheck endpoint`
-- `fix: handle redis connection errors`
+## Security
 
-## 7) Configuration and Secret Management
+- Never log sensitive data (tokens, passwords, OTPs).
+- Auth changes must consider edge cases: token refresh, expiry, rate limiting, fail-closed guard behavior.
 
-- The `.env` file must not be added to the repository.
-- `.env.example` must be kept up to date.
-- When adding a new environment variable:
-  - Add an example value to `.env.example`,
-  - Add validation rule to the `src/common/config/env.validation.ts` schema (and `env.schema.ts` if adding fields).
+## Review
 
-## 8) Database and Migration
+- At least one reviewer approves before merge.
+- Don't merge until feedback is addressed.
 
-- Schema changes must follow the Drizzle structure.
-- If migration is required, it must be mentioned in the PR description.
-
-## 9) Security
-
-- Sensitive data such as tokens/passwords/OTP must not be logged.
-- Auth-related changes must consider edge-case scenarios (timeout, token refresh, rate limit).
-
-## 10) Review and Approval
-
-- PRs must be reviewed by at least one reviewer.
-- PRs must not be merged until reviewer feedback is addressed.
-
-Thank you. Contributions that follow these rules help the template mature faster.
+Thank you — changes that follow these rules keep the template healthy.

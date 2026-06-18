@@ -21,7 +21,7 @@ import request from 'supertest';
 import { App } from 'supertest/types';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { AppModule } from '../src/app.module';
-import { HttpExceptionFilter } from '../src/common/filters/http-exception.filter';
+import { HttpExceptionFilter } from '../src/modules/shared/common/filters/http-exception.filter';
 
 describe('App (e2e)', () => {
   let app: INestApplication<App>;
