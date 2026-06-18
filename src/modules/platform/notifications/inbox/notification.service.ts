@@ -8,10 +8,12 @@ import { PushDeliveryStatus } from '../../../shared/database/schema/enums/notifi
 import { paginate } from '../../../shared/common/utils/pagination.util';
 import { toNotificationResponse } from '../mappers/notification.mapper';
 import type { NotificationPort } from '../interfaces/notification-port.interface';
-import type {
-  ListForUserParams,
-  NotificationPage,
-  PersistInboxParams,
+import {
+  plainText,
+  type ListForUserParams,
+  type NotificationPage,
+  type NotifyUserParams,
+  type PersistInboxParams,
 } from '../interfaces/notification.types';
 import type { Notification } from '../../../shared/database/types/notification-select.type';
 
@@ -50,9 +52,7 @@ export class NotificationService implements NotificationPort {
    * stored row; push failure is recorded as FAILED status but never thrown so a
    * transactional caller's request is not coupled to the push provider.
    */
-  async sendToUser(
-    params: PersistInboxParams & { pushExternalId: string | null },
-  ): Promise<Notification> {
+  async notifyUser(params: NotifyUserParams): Promise<Notification> {
     const notification = await this.persistInbox(params);
 
     if (!params.pushExternalId) {
@@ -65,8 +65,8 @@ export class NotificationService implements NotificationPort {
 
     const result = await this.pushSender.sendToExternalIds({
       externalIds: [params.pushExternalId],
-      title: { default: params.title },
-      body: { default: params.body },
+      title: plainText(params.title),
+      body: plainText(params.body),
       url: params.deepLink,
       iconUrl: params.iconUrl,
       data: { ...params.payload, notificationId: notification.id },
@@ -96,6 +96,10 @@ export class NotificationService implements NotificationPort {
     const updated = await this.repo.markRead(id, recipientUserId);
     if (updated) return true;
     return this.repo.existsForUser(id, recipientUserId);
+  }
+
+  async unreadCount(recipientUserId: number): Promise<number> {
+    return this.repo.countUnread(recipientUserId);
   }
 
   async listForUser(params: ListForUserParams): Promise<NotificationPage> {

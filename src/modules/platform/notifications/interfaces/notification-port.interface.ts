@@ -2,6 +2,7 @@ import type { Notification } from '../../../shared/database/types/notification-s
 import type {
   ListForUserParams,
   NotificationPage,
+  NotifyUserParams,
   PersistInboxParams,
 } from './notification.types';
 
@@ -13,7 +14,15 @@ import type {
  * the port stores and reads already-resolved rows.
  */
 export interface NotificationPort {
-  /** Persist one inbox row and return it. */
+  /**
+   * Transactional (single-user) send: persists one inbox row and, when a push
+   * alias is supplied, delivers one push. Push failure is recorded as a delivery
+   * status, never thrown, so the caller's request is not coupled to the push
+   * provider. Bulk fan-out goes through the broadcast queue, not this path.
+   */
+  notifyUser(params: NotifyUserParams): Promise<Notification>;
+
+  /** Persist one inbox row without any push side-channel. */
   persistInbox(params: PersistInboxParams): Promise<Notification>;
 
   /**
@@ -21,6 +30,9 @@ export interface NotificationPort {
    * is not owned by the user, or was already read/deleted.
    */
   markRead(id: number, recipientUserId: number): Promise<boolean>;
+
+  /** Number of unread, non-deleted notifications for a recipient. */
+  unreadCount(recipientUserId: number): Promise<number>;
 
   /** Paginated listing of a recipient's inbox, newest first. */
   listForUser(params: ListForUserParams): Promise<NotificationPage>;

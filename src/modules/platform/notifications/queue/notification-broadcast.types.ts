@@ -1,7 +1,7 @@
 import type { NotificationType } from '../../../shared/database/schema/enums/notification-type.enum';
 import type {
   BroadcastRecipient,
-  LocalizedCopy,
+  LocalizedText,
 } from '../interfaces/notification.types';
 
 /** Named job carrying one chunk of a broadcast fan-out. */
@@ -18,8 +18,8 @@ export interface BroadcastChunkJob {
   broadcastId: string | null;
   type: NotificationType;
   recipients: BroadcastRecipient[];
-  title: LocalizedCopy;
-  body: LocalizedCopy;
+  title: LocalizedText;
+  body: LocalizedText;
   deepLink?: string;
   iconUrl?: string;
   payload?: Record<string, unknown>;

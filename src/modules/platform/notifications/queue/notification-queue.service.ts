@@ -12,7 +12,7 @@ import {
 import type { NotificationType } from '../../../shared/database/schema/enums/notification-type.enum';
 import type {
   BroadcastRecipient,
-  LocalizedCopy,
+  LocalizedText,
 } from '../interfaces/notification.types';
 
 const DEFAULT_CHUNK_SIZE = 500;
@@ -22,8 +22,8 @@ export interface EnqueueBroadcastParams {
   broadcastId?: string | null;
   type: NotificationType;
   recipients: BroadcastRecipient[];
-  title: LocalizedCopy;
-  body: LocalizedCopy;
+  title: LocalizedText;
+  body: LocalizedText;
   deepLink?: string;
   iconUrl?: string;
   payload?: Record<string, unknown>;

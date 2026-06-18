@@ -6,13 +6,19 @@ import type {
   SendPushParams,
   SendPushResult,
 } from '../interfaces/push-sender.interface';
+import type { LocalizedText } from '../interfaces/notification.types';
 import { isTransientError, sleep } from './push-retry.util';
 
 const INTERNAL_RETRY_ATTEMPTS = 2;
 const INTERNAL_RETRY_BACKOFF_MS = 250;
 
-/** OneSignal multilingual maps require at least the `en` key as a fallback. */
-const FALLBACK_LOCALE = 'en';
+/**
+ * OneSignal's multilingual `contents`/`headings` maps require at least the `en`
+ * key. This is a OneSignal API requirement, not a generic locale assumption —
+ * it lives inside this adapter and is fed from the generic `LocalizedText`
+ * default, so other providers are free to map locales however they need.
+ */
+const ONESIGNAL_REQUIRED_LANG = 'en';
 
 /**
  * OneSignal reference implementation of the `PushSender` port. All provider
@@ -117,23 +123,14 @@ export class OneSignalPushSender implements PushSender, OnModuleInit {
   }
 
   /**
-   * OneSignal's `contents`/`headings` are language→string maps and require an
-   * `en` key. Map the generic LocalizedCopy onto them, falling back to any
-   * provided value (preferring `default`) for the required English key.
+   * Maps generic `LocalizedText` onto OneSignal's language→string map. Per-locale
+   * overrides pass through as-is; OneSignal's mandatory `en` key is filled from
+   * the text default whenever an explicit `en` override is absent.
    */
-  private toLangMap(copy: {
-    [locale: string]: string | undefined;
-  }): Record<string, string> {
-    const result: Record<string, string> = {};
-    for (const [locale, value] of Object.entries(copy)) {
-      if (value !== undefined && locale !== 'default') result[locale] = value;
-    }
-    if (!result[FALLBACK_LOCALE]) {
-      const fallback =
-        copy.default ??
-        copy[FALLBACK_LOCALE] ??
-        Object.values(copy).find(Boolean);
-      result[FALLBACK_LOCALE] = fallback ?? '';
+  private toLangMap(text: LocalizedText): Record<string, string> {
+    const result: Record<string, string> = { ...text.byLocale };
+    if (!result[ONESIGNAL_REQUIRED_LANG]) {
+      result[ONESIGNAL_REQUIRED_LANG] = text.default;
     }
     return result;
   }

@@ -1,11 +1,11 @@
-import type { LocalizedCopy } from './notification.types';
+import type { LocalizedText } from './notification.types';
 
 /** Parameters for a single push fan-out to a set of provider-side aliases. */
 export interface SendPushParams {
   /** Provider-side recipient aliases (e.g. OneSignal external ids). */
   externalIds: string[];
-  title: LocalizedCopy;
-  body: LocalizedCopy;
+  title: LocalizedText;
+  body: LocalizedText;
   data?: Record<string, unknown>;
   url?: string;
   iconUrl?: string;

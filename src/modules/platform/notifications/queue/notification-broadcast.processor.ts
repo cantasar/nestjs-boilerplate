@@ -16,7 +16,7 @@ import {
   type BroadcastChunkResult,
 } from './notification-broadcast.types';
 import type { NewNotification } from '../../../shared/database/types/notification-insert.type';
-import type { LocalizedCopy } from '../interfaces/notification.types';
+import { resolveLocalizedText } from '../interfaces/notification.types';
 
 /**
  * Concurrency is read at class-decoration time (before DI), so it comes from
@@ -57,8 +57,8 @@ export class NotificationBroadcastProcessor
     const rows: NewNotification[] = data.recipients.map((r) => ({
       recipientUserId: r.userId,
       type: data.type,
-      title: this.pickCopy(data.title, r.locale),
-      body: this.pickCopy(data.body, r.locale),
+      title: resolveLocalizedText(data.title, r.locale),
+      body: resolveLocalizedText(data.body, r.locale),
       deepLink: data.deepLink,
       iconUrl: data.iconUrl,
       payload: data.payload ?? {},
@@ -157,12 +157,5 @@ export class NotificationBroadcastProcessor
           );
         });
     }
-  }
-
-  /** Picks the recipient's locale copy, falling back to `default` then any value. */
-  private pickCopy(copy: LocalizedCopy, locale: string): string {
-    return (
-      copy[locale] ?? copy.default ?? Object.values(copy).find(Boolean) ?? ''
-    );
   }
 }

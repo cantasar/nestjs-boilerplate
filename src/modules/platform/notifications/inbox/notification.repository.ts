@@ -91,6 +91,21 @@ export class NotificationRepository {
     return rows.length > 0;
   }
 
+  /** Count of unread, non-deleted notifications for a recipient. */
+  async countUnread(recipientUserId: number): Promise<number> {
+    const [row] = await this.db
+      .select({ value: count() })
+      .from(notifications)
+      .where(
+        and(
+          eq(notifications.recipientUserId, recipientUserId),
+          isNull(notifications.readAt),
+          isNull(notifications.deletedAt),
+        ),
+      );
+    return row?.value ?? 0;
+  }
+
   async findPage(
     params: ListForUserParams,
   ): Promise<{ rows: Notification[]; totalCount: number }> {
