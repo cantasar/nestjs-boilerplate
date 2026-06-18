@@ -30,6 +30,25 @@ if (dsn) {
     enableLogs: true,
     // Attach userId via Sentry.setUser at the auth layer; never raw IP/headers/body.
     sendDefaultPii: false,
+    // Defense-in-depth: even with sendDefaultPii off, scrub request body, cookies
+    // and auth headers from every event before it leaves the process, so a
+    // captured exception can't carry user-supplied secrets/PII.
+    beforeSend: (event) => {
+      if (event.request) {
+        delete event.request.data;
+        delete event.request.cookies;
+        const headers = event.request.headers as
+          | Record<string, unknown>
+          | undefined;
+        if (headers) {
+          delete headers.authorization;
+          delete headers.Authorization;
+          delete headers.cookie;
+          delete headers.Cookie;
+        }
+      }
+      return event;
+    },
     // Ship business info/warn/error to Sentry Logs, but drop pino-http's
     // per-request access logs — those flood the Logs quota and usually already
     // live in your infra's log sink. `attributes` spreads the full pino object,

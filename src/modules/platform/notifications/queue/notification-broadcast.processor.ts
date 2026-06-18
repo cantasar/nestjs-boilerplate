@@ -67,33 +67,46 @@ export class NotificationBroadcastProcessor
     }));
 
     let toInsert = rows;
-    const existingIds: number[] = [];
     if (data.broadcastId) {
-      const recipientIds = data.recipients.map((r) => r.userId);
       const existing = await this.repo.findExistingByBroadcast(
         data.broadcastId,
-        recipientIds,
+        data.recipients.map((r) => r.userId),
       );
       const existingRecipients = new Set(
         existing.map((e) => e.recipientUserId),
       );
-      existingIds.push(...existing.map((e) => e.id));
       toInsert = rows.filter((r) => !existingRecipients.has(r.recipientUserId));
     }
     const inserted = await this.repo.bulkInsert(toInsert);
-    const insertedIds = [...existingIds, ...inserted.map((row) => row.id)];
 
-    // Phase B — push to the targetable recipients only.
-    const externalIds = data.recipients
-      .map((r) => r.pushExternalId)
-      .filter((id): id is string => Boolean(id));
+    // Phase B — push only to recipients still PENDING (fresh inserts + any
+    // left over from a partial prior attempt). On a retry this excludes anyone
+    // already SENT, so they are never pushed twice.
+    const recipientIds = data.recipients.map((r) => r.userId);
+    const pendingRows = data.broadcastId
+      ? await this.repo.findPendingByBroadcast(data.broadcastId, recipientIds)
+      : inserted.map((r) => ({ id: r.id, recipientUserId: r.recipientUserId }));
+    const pendingIds = pendingRows.map((r) => r.id);
+
+    const aliasByUser = new Map(
+      data.recipients
+        .filter((r) => r.pushExternalId)
+        .map((r) => [r.userId, r.pushExternalId as string]),
+    );
+    const targets = pendingRows.filter((r) =>
+      aliasByUser.has(r.recipientUserId),
+    );
+    const externalIds = targets.map(
+      (r) => aliasByUser.get(r.recipientUserId) as string,
+    );
 
     if (externalIds.length === 0) {
+      // Nobody (still pending) has a push alias — record SKIPPED and finish.
       await this.repo.markPushStatusByIds(
-        insertedIds,
+        pendingIds,
         PushDeliveryStatus.SKIPPED,
       );
-      return { inserted: rows.length, pushed: false, recipients: 0 };
+      return { inserted: inserted.length, pushed: false, recipients: 0 };
     }
 
     const result = await this.pushSender.sendToExternalIds({
@@ -107,10 +120,10 @@ export class NotificationBroadcastProcessor
 
     if (result.skipped) {
       await this.repo.markPushStatusByIds(
-        insertedIds,
+        pendingIds,
         PushDeliveryStatus.SKIPPED,
       );
-      return { inserted: rows.length, pushed: false, recipients: 0 };
+      return { inserted: inserted.length, pushed: false, recipients: 0 };
     }
 
     if (!result.delivered) {
@@ -121,9 +134,13 @@ export class NotificationBroadcastProcessor
       );
     }
 
-    await this.repo.markPushStatusByIds(insertedIds, PushDeliveryStatus.SENT);
+    // Mark the pushed recipients SENT and the pending-without-alias ones SKIPPED.
+    const sentIds = targets.map((r) => r.id);
+    const skippedIds = pendingIds.filter((id) => !sentIds.includes(id));
+    await this.repo.markPushStatusByIds(sentIds, PushDeliveryStatus.SENT);
+    await this.repo.markPushStatusByIds(skippedIds, PushDeliveryStatus.SKIPPED);
     return {
-      inserted: rows.length,
+      inserted: inserted.length,
       pushed: true,
       recipients: result.recipients ?? externalIds.length,
     };

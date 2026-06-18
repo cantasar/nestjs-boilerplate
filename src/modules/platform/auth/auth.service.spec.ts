@@ -33,6 +33,7 @@ describe('AuthService', () => {
     verify: jest.fn(),
   };
   const mockConfigService = {
+    get: jest.fn(() => undefined),
     getOrThrow: jest.fn((key: string) => {
       if (key === 'JWT_SECRET') return 'test-secret';
       if (key === 'JWT_EXPIRATION') return '15m';

@@ -54,6 +54,31 @@ export class NotificationRepository {
   }
 
   /**
+   * Rows of a broadcast chunk still in PENDING push state, keyed by recipient.
+   * Lets the worker push only to recipients not yet delivered on a retry — so a
+   * re-run never re-pushes to someone already SENT.
+   */
+  async findPendingByBroadcast(
+    broadcastId: string,
+    recipientUserIds: number[],
+  ): Promise<{ id: number; recipientUserId: number }[]> {
+    if (recipientUserIds.length === 0) return [];
+    return this.db
+      .select({
+        id: notifications.id,
+        recipientUserId: notifications.recipientUserId,
+      })
+      .from(notifications)
+      .where(
+        and(
+          eq(notifications.broadcastId, broadcastId),
+          inArray(notifications.recipientUserId, recipientUserIds),
+          eq(notifications.pushDeliveryStatus, PushDeliveryStatus.PENDING),
+        ),
+      );
+  }
+
+  /**
    * Mark every still-PENDING row of a broadcast chunk as FAILED. Called when a
    * chunk job exhausts its retries so rows don't sit PENDING forever.
    */

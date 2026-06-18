@@ -10,7 +10,7 @@ import {
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
-import { randomInt, randomUUID } from 'crypto';
+import { randomInt, randomUUID, timingSafeEqual } from 'crypto';
 import type * as jwt from 'jsonwebtoken';
 import { UserRepository } from '../../shared/database/repositories/user.repository';
 import { MailQueueService } from '../mail/queue/mail-queue.service';
@@ -53,6 +53,7 @@ interface AuthResponse {
 
 interface RefreshResponse {
   accessToken: string;
+  refreshToken: string;
 }
 
 interface OtpSession {
@@ -82,6 +83,10 @@ interface LoginInput {
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
   private googleClient: OAuth2Client | null = null;
+  // Lazily computed once, then reused, so a "user not found" login path still
+  // spends bcrypt time — denying a timing oracle that distinguishes unknown
+  // accounts. Lazy (not a field initializer) so construction stays cheap.
+  private dummyPasswordHash: string | null = null;
 
   constructor(
     private readonly userRepository: UserRepository,
@@ -120,7 +125,10 @@ export class AuthService {
   async login(dto: LoginInput): Promise<AuthResponse> {
     const email = this.normalizeEmail(dto.email);
     const user = await this.userRepository.findByEmail(email);
-    if (!user) throw new UnauthorizedException('Invalid credentials');
+    if (!user) {
+      await this.dummyPasswordCompare(dto.password);
+      throw new UnauthorizedException('Invalid credentials');
+    }
     if (!user.isActive) throw new UnauthorizedException('User is not active');
     if (!user.password)
       throw new UnauthorizedException('This account uses social login');
@@ -141,7 +149,12 @@ export class AuthService {
     if (!clientId)
       throw new BadRequestException('Google login is not configured');
     if (!this.googleClient) this.googleClient = new OAuth2Client(clientId);
-    const ticket = await this.googleClient.verifyIdToken({ idToken });
+    // Assert the token's `aud` matches our client id — without it, a valid
+    // Google token minted for a different OAuth client would be accepted.
+    const ticket = await this.googleClient.verifyIdToken({
+      idToken,
+      audience: clientId,
+    });
     const payload = ticket.getPayload();
     if (!payload?.email) throw new UnauthorizedException('Invalid Token');
 
@@ -189,9 +202,12 @@ export class AuthService {
   async forgotPassword(rawEmail: string): Promise<void> {
     // void-ok
     const email = this.normalizeEmail(rawEmail);
+    // Rate-limit before the user lookup so the limiter engages for unknown
+    // emails too — otherwise only existing accounts can hit the limit, leaking
+    // existence.
+    await this.ensureForgotPasswordRateLimit(email);
     const user = await this.userRepository.findByEmail(email);
     if (!user) return;
-    await this.ensureForgotPasswordRateLimit(email);
     const code = this.generateOtpCode();
     const key = this.getResetPasswordKey(email);
     const ttl = this.configService.getOrThrow<number>('REDIS_TTL');
@@ -219,7 +235,10 @@ export class AuthService {
     const email = this.normalizeEmail(rawEmail);
     const key = this.getResetPasswordKey(email);
     const storedCode = await this.redisService.get(key);
-    if (!storedCode || storedCode !== code) {
+    if (!storedCode || !this.constantTimeEqual(storedCode, code)) {
+      // Count failures and burn the code after too many, so a 6-digit code
+      // can't be brute-forced within the TTL window.
+      await this.registerResetFailure(key);
       throw new BadRequestException('Invalid or expired verification code');
     }
     const user = await this.userRepository.findByEmail(email);
@@ -233,6 +252,31 @@ export class AuthService {
     await this.userRepository.updatePassword(email, hashedPassword);
     await this.userRepository.updateRefreshToken(user.id, null);
     await this.redisService.del(key);
+    await this.redisService.del(AUTH_REDIS_KEYS.attempts(key));
+  }
+
+  /**
+   * Increments the reset-code failure counter; once the attempt limit is hit the
+   * code + counter are deleted so further guesses fail closed.
+   */
+  private async registerResetFailure(key: string): Promise<void> {
+    // void-ok
+    const attemptsKey = AUTH_REDIS_KEYS.attempts(key);
+    const attempts = await this.redisService.incr(attemptsKey);
+    if (attempts === 1) {
+      await this.redisService.expire(
+        attemptsKey,
+        this.configService.getOrThrow<number>('REDIS_TTL'),
+      );
+    }
+    const maxAttempts = this.getConfigNumber(
+      AUTH_CONFIG_KEYS.OTP_MAX_ATTEMPTS,
+      AUTH_OTP_DEFAULTS.OTP_MAX_ATTEMPTS,
+    );
+    if (attempts >= maxAttempts) {
+      await this.redisService.del(key);
+      await this.redisService.del(attemptsKey);
+    }
   }
 
   async refresh(refreshToken: string): Promise<RefreshResponse> {
@@ -250,11 +294,15 @@ export class AuthService {
       );
       if (!isTokenValid)
         throw new UnauthorizedException('Invalid refresh token');
-      const accessToken = await this.jwtService.signAsync(
-        { sub: user.id, email: user.email },
-        this.getAccessTokenSignOptions(),
-      );
-      return { accessToken };
+      // Rotate: issue a new refresh token and overwrite the stored hash, so the
+      // presented token is single-use — a leaked/replayed old token no longer
+      // matches and is rejected.
+      const tokens = await this.generateTokens(user.id, user.email);
+      await this.updateRefreshToken(user.id, tokens.refreshToken);
+      return {
+        accessToken: tokens.accessToken,
+        refreshToken: tokens.refreshToken,
+      };
     } catch {
       throw new UnauthorizedException('Invalid or expired refresh token');
     }
@@ -333,7 +381,10 @@ export class AuthService {
   async loginEmail(rawEmail: string, password: string): Promise<OtpSession> {
     const email = this.normalizeEmail(rawEmail);
     const user = await this.userRepository.findByEmail(email);
-    if (!user) throw new UnauthorizedException('Invalid credentials');
+    if (!user) {
+      await this.dummyPasswordCompare(password);
+      throw new UnauthorizedException('Invalid credentials');
+    }
     if (!user.isActive) throw new UnauthorizedException('User is not active');
     if (!user.password)
       throw new UnauthorizedException('This account uses social login');
@@ -451,7 +502,10 @@ export class AuthService {
   async loginPhone(rawPhone: string, password: string): Promise<OtpSession> {
     const phone = this.normalizePhone(rawPhone);
     const user = await this.userRepository.findByPhone(phone);
-    if (!user) throw new UnauthorizedException('Invalid credentials');
+    if (!user) {
+      await this.dummyPasswordCompare(password);
+      throw new UnauthorizedException('Invalid credentials');
+    }
     if (!user.isActive) throw new UnauthorizedException('User is not active');
     if (!user.password)
       throw new UnauthorizedException('This account uses social login');
@@ -558,6 +612,26 @@ export class AuthService {
     return otp;
   }
 
+  /** Spends bcrypt time on a missing account to equalize login timing. */
+  private async dummyPasswordCompare(password: string): Promise<void> {
+    // void-ok
+    if (!this.dummyPasswordHash) {
+      this.dummyPasswordHash = await bcrypt.hash(
+        randomUUID(),
+        AUTH_CONSTANTS.BCRYPT_SALT_ROUNDS,
+      );
+    }
+    await bcrypt.compare(password, this.dummyPasswordHash);
+  }
+
+  /** Constant-time equality for fixed-length secrets (OTPs, reset codes). */
+  private constantTimeEqual(a: string, b: string): boolean {
+    const ab = Buffer.from(a, 'utf8');
+    const bb = Buffer.from(b, 'utf8');
+    if (ab.length !== bb.length) return false;
+    return timingSafeEqual(ab, bb);
+  }
+
   private async readSession<T>(key: string): Promise<T | null> {
     const raw = await this.redisService.get(key);
     if (!raw) return null;
@@ -579,7 +653,7 @@ export class AuthService {
     expectedOtp: string,
   ): Promise<void> {
     // void-ok
-    if (submittedOtp === expectedOtp) return;
+    if (this.constantTimeEqual(submittedOtp, expectedOtp)) return;
     const attemptsKey = AUTH_REDIS_KEYS.attempts(sessionKey);
     const attempts = await this.redisService.incr(attemptsKey);
     if (attempts === 1) {
@@ -729,9 +803,11 @@ export class AuthService {
   }
 
   private shouldEchoOtp(): boolean {
+    // Never echo OTPs in production, even if the debug flag is mistakenly set.
     return (
+      this.configService.get<string>('NODE_ENV') !== 'production' &&
       this.configService.get<string>(AUTH_CONFIG_KEYS.DEBUG_RETURN_OTP) ===
-      'true'
+        'true'
     );
   }
 

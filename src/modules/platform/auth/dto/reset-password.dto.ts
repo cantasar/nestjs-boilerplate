@@ -1,6 +1,12 @@
 import { Transform } from 'class-transformer';
 import { ApiProperty } from '@nestjs/swagger';
-import { IsEmail, IsString, Length, MinLength } from 'class-validator';
+import {
+  IsEmail,
+  IsString,
+  Length,
+  MaxLength,
+  MinLength,
+} from 'class-validator';
 
 export class ResetPasswordDto {
   @ApiProperty({ example: 'user@example.com' })
@@ -18,8 +24,9 @@ export class ResetPasswordDto {
   @Length(6, 6)
   code: string;
 
-  @ApiProperty({ example: 'newpassword123', minLength: 6 })
+  @ApiProperty({ example: 'newpassword123', minLength: 6, maxLength: 72 })
   @IsString()
   @MinLength(6)
+  @MaxLength(72, { message: 'Password must be at most 72 characters' })
   newPassword: string;
 }

@@ -31,10 +31,14 @@ async function main(): Promise<void> {
     await pool.query('SELECT pg_advisory_lock($1)', [ADVISORY_LOCK_KEY]);
     // No-op when the migrations folder is missing/empty or the schema is current.
     await migrate(db, { migrationsFolder: MIGRATIONS_FOLDER });
-    await pool.query('SELECT pg_advisory_unlock($1)', [ADVISORY_LOCK_KEY]);
     // eslint-disable-next-line no-console
     console.log('[migrate] done');
   } finally {
+    // Release on every path (incl. migration failure); harmless no-op when the
+    // lock is not held. pool.end() would drop it anyway, but be explicit.
+    await pool
+      .query('SELECT pg_advisory_unlock($1)', [ADVISORY_LOCK_KEY])
+      .catch(() => {});
     await pool.end().catch(() => {});
   }
 }

@@ -26,8 +26,9 @@ export interface NotificationPort {
   persistInbox(params: PersistInboxParams): Promise<Notification>;
 
   /**
-   * Mark a row read for its owner. Returns false when the row does not exist,
-   * is not owned by the user, or was already read/deleted.
+   * Mark a row read for its owner. Idempotent: returns true when the row is now
+   * (or was already) read for this user; false only when no such row exists for
+   * the user (missing, not owned, or deleted) — a repeated mark-read succeeds.
    */
   markRead(id: number, recipientUserId: number): Promise<boolean>;
 

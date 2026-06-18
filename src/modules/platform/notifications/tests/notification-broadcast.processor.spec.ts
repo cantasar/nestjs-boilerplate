@@ -10,8 +10,15 @@ import type { NewNotification } from '../../../shared/database/types/notificatio
 
 describe('NotificationBroadcastProcessor', () => {
   const repo = {
-    bulkInsert: jest.fn<Promise<{ id: number }[]>, [NewNotification[]]>(),
+    bulkInsert: jest.fn<
+      Promise<{ id: number; recipientUserId: number }[]>,
+      [NewNotification[]]
+    >(),
     findExistingByBroadcast: jest.fn(),
+    findPendingByBroadcast: jest.fn<
+      Promise<{ id: number; recipientUserId: number }[]>,
+      [string, number[]]
+    >(),
     markPushStatusByIds: jest.fn<
       Promise<void>,
       [number[], PushDeliveryStatus]
@@ -27,7 +34,14 @@ describe('NotificationBroadcastProcessor', () => {
   beforeEach(async () => {
     jest.clearAllMocks();
     repo.findExistingByBroadcast.mockResolvedValue([]);
-    repo.bulkInsert.mockResolvedValue([{ id: 10 }, { id: 11 }]);
+    repo.findPendingByBroadcast.mockResolvedValue([
+      { id: 10, recipientUserId: 1 },
+      { id: 11, recipientUserId: 2 },
+    ]);
+    repo.bulkInsert.mockResolvedValue([
+      { id: 10, recipientUserId: 1 },
+      { id: 11, recipientUserId: 2 },
+    ]);
     repo.markPushStatusByIds.mockResolvedValue(undefined);
 
     const moduleRef = await Test.createTestingModule({
