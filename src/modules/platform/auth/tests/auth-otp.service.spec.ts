@@ -8,7 +8,7 @@ import {
 import { JwtService } from '@nestjs/jwt';
 import { AuthService } from '../auth.service';
 import { UserRepository } from '../../../shared/database/repositories/user.repository';
-import { MailService } from '../../mail/mail.service';
+import { MailQueueService } from '../../mail/queue/mail-queue.service';
 import { RedisService } from '../../../shared/redis/redis.service';
 import { SMS_SENDER } from '../../sms/interfaces/sms-sender.interface';
 import { AUTH_REDIS_KEYS } from '../auth.constants';
@@ -68,7 +68,7 @@ describe('AuthService OTP/phone flows', () => {
     get: jest.fn(),
     del: jest.fn().mockResolvedValue(1),
   };
-  const mockMailService = { sendOtpEmail: jest.fn() };
+  const mockMailQueue = { enqueue: jest.fn() };
   const mockSmsSender = { send: jest.fn() };
 
   beforeEach(async () => {
@@ -85,7 +85,7 @@ describe('AuthService OTP/phone flows', () => {
         { provide: JwtService, useValue: mockJwtService },
         { provide: ConfigService, useValue: mockConfigService },
         { provide: RedisService, useValue: mockRedisService },
-        { provide: MailService, useValue: mockMailService },
+        { provide: MailQueueService, useValue: mockMailQueue },
         { provide: SMS_SENDER, useValue: mockSmsSender },
       ],
     }).compile();
@@ -110,7 +110,9 @@ describe('AuthService OTP/phone flows', () => {
       const result = await service.resendEmailVerification('user@example.com');
       expect(result?.sessionToken).toBeTruthy();
       expect(mockRedisService.setWithExpirySeconds).toHaveBeenCalled();
-      expect(mockMailService.sendOtpEmail).toHaveBeenCalled();
+      expect(mockMailQueue.enqueue).toHaveBeenCalledWith(
+        expect.objectContaining({ template: 'verify-email' }),
+      );
       expect(result?.otp).toBeUndefined(); // not echoed without debug flag
     });
   });

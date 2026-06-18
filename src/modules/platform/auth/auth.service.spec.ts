@@ -8,7 +8,7 @@ import {
 import { JwtService } from '@nestjs/jwt';
 import { AuthService } from './auth.service';
 import { UserRepository } from '../../shared/database/repositories/user.repository';
-import { MailService } from '../mail/mail.service';
+import { MailQueueService } from '../mail/queue/mail-queue.service';
 import { RedisService } from '../../shared/redis/redis.service';
 import { SMS_SENDER } from '../sms/interfaces/sms-sender.interface';
 import * as bcrypt from 'bcrypt';
@@ -48,8 +48,8 @@ describe('AuthService', () => {
     get: jest.fn(),
     del: jest.fn(),
   };
-  const mockMailService = {
-    sendOtpEmail: jest.fn(),
+  const mockMailQueue = {
+    enqueue: jest.fn(),
   };
   const mockSmsSender = {
     send: jest.fn(),
@@ -67,7 +67,7 @@ describe('AuthService', () => {
         { provide: JwtService, useValue: mockJwtService },
         { provide: ConfigService, useValue: mockConfigService },
         { provide: RedisService, useValue: mockRedisService },
-        { provide: MailService, useValue: mockMailService },
+        { provide: MailQueueService, useValue: mockMailQueue },
         { provide: SMS_SENDER, useValue: mockSmsSender },
       ],
     }).compile();

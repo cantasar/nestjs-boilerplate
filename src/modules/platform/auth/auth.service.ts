@@ -13,7 +13,7 @@ import * as bcrypt from 'bcrypt';
 import { randomInt, randomUUID } from 'crypto';
 import type * as jwt from 'jsonwebtoken';
 import { UserRepository } from '../../shared/database/repositories/user.repository';
-import { MailService } from '../mail/mail.service';
+import { MailQueueService } from '../mail/queue/mail-queue.service';
 import { RedisService } from '../../shared/redis/redis.service';
 import {
   AUTH_CONSTANTS,
@@ -88,7 +88,7 @@ export class AuthService {
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
     private readonly redisService: RedisService,
-    private readonly mailService: MailService,
+    private readonly mailQueue: MailQueueService,
     @Inject(SMS_SENDER) private readonly smsSender: SmsSender,
   ) {}
 
@@ -197,7 +197,11 @@ export class AuthService {
     const ttl = this.configService.getOrThrow<number>('REDIS_TTL');
     await this.redisService.setWithExpirySeconds(key, code, ttl);
     try {
-      await this.mailService.sendOtpEmail(email, code);
+      await this.mailQueue.enqueue({
+        template: 'password-reset',
+        to: email,
+        code,
+      });
     } catch (error) {
       this.logger.error(
         'Mail sending failed',
@@ -285,7 +289,11 @@ export class AuthService {
       ttl,
     );
     try {
-      await this.mailService.sendOtpEmail(email, otp);
+      await this.mailQueue.enqueue({
+        template: 'verify-email',
+        to: email,
+        code: otp,
+      });
     } catch (error) {
       this.logger.error(
         'Verification mail failed',
@@ -353,7 +361,7 @@ export class AuthService {
       ttl,
     );
     try {
-      await this.mailService.sendOtpEmail(email, otp);
+      await this.mailQueue.enqueue({ template: 'otp', to: email, code: otp });
     } catch (error) {
       await this.redisService.del(key);
       this.logger.error(

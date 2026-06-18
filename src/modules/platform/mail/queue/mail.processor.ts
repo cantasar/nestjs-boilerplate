@@ -42,13 +42,8 @@ export class MailProcessor extends WorkerHost implements OnApplicationShutdown {
   // void-ok: WorkerHost.process resolves with nothing for fire-and-forget jobs.
   async process(job: Job<MailJob>): Promise<void> {
     const data = job.data;
-    // Fail fast on an unknown template (before claiming) so it surfaces instead
-    // of silently no-op'ing and being marked sent.
-    if (data.template !== 'otp') {
-      throw new Error(`Unknown mail template: ${String(data.template)}`);
-    }
 
-    const dedupKey = `mail:sent:${data.template}:${data.to}:${data.otp}`;
+    const dedupKey = `mail:sent:${data.template}:${data.to}:${data.code}`;
     const claimed = await this.redis.acquireLock(
       dedupKey,
       MAIL_DEDUP_TTL_SECONDS,
@@ -61,11 +56,27 @@ export class MailProcessor extends WorkerHost implements OnApplicationShutdown {
     }
 
     try {
-      await this.mail.sendOtpEmail(data.to, data.otp);
+      await this.send(data);
     } catch (err) {
       // Release the claim so BullMQ's retry can re-send.
       await this.redis.del(dedupKey);
       throw err;
+    }
+  }
+
+  /** Dispatches a job to the matching `MailService` method by template arm. */
+  private async send(data: MailJob): Promise<void> {
+    // void-ok
+    switch (data.template) {
+      case 'otp':
+        await this.mail.sendOtpEmail(data.to, data.code);
+        return;
+      case 'verify-email':
+        await this.mail.sendVerificationEmail(data.to, data.code);
+        return;
+      case 'password-reset':
+        await this.mail.sendPasswordResetEmail(data.to, data.code);
+        return;
     }
   }
 
