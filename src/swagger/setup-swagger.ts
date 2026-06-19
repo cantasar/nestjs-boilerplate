@@ -7,6 +7,7 @@ import type { Express, NextFunction, Request, Response } from 'express';
 import { UserRole } from '../modules/shared/common/enums/user-role.enum';
 import { AuthProvider } from '../modules/shared/database/schema/enums/auth-provider.enum';
 import { ALL_ERROR_CODES } from '../modules/shared/common/errors/error-registry';
+import { convert as convertOpenApiToPostman } from 'openapi-to-postmanv2';
 
 const DOCS_PATH = 'docs' as const;
 
@@ -42,6 +43,28 @@ const ENUMS_TO_REGISTER: Record<string, Record<string, string>> = {
 const BRAND_CSS = `
   body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
   .swagger-ui .topbar .download-url-wrapper { display: none; }
+  /* Per-operation "Copy MD" button */
+  .swagger-ui .opblock-summary .api-copy-md { margin-left: 8px; padding: 2px 8px;
+    font-size: 11px; cursor: pointer; border: 1px solid #89bf04; background: #fff;
+    color: #3b4151; border-radius: 4px; font-family: inherit; }
+  /* Top-bar actions (Export Postman + Copy Enums) — right-aligned */
+  .swagger-ui .topbar #api-topbar-actions { margin-left: auto; display: flex;
+    align-items: center; gap: 8px; flex: 0 0 auto; }
+  .api-postman, .api-enums { font-size: 13px; font-weight: 600; cursor: pointer;
+    border: 1px solid #89bf04; border-radius: 4px; padding: 6px 12px; line-height: 1.2;
+    text-decoration: none; display: inline-block; font-family: inherit; white-space: nowrap; }
+  .api-postman { background: #89bf04; color: #1b1b1b; }
+  .api-enums { background: #fff; color: #3b4151; }
+  /* High specificity — swagger-ui's .topbar link/button styles otherwise inflate the font. */
+  .swagger-ui .topbar #api-topbar-actions .api-postman,
+  .swagger-ui .topbar #api-topbar-actions .api-enums { font-size: 13px; line-height: 1.2;
+    padding: 6px 12px; height: auto; }
+  /* Global expand/collapse-all controls — left of the Authorize button */
+  #api-collapse-controls { display: inline-flex; gap: 8px; margin-right: 12px;
+    align-items: center; }
+  .api-collapse-btn { padding: 6px 12px; font-size: 13px; cursor: pointer;
+    border: 1px solid #89bf04; background: #fff; color: #3b4151; border-radius: 4px;
+    font-family: inherit; white-space: nowrap; }
 `;
 
 const ENDPOINT_FILTER_JS = `
@@ -156,6 +179,331 @@ function crossLinkBannerJs(href: string, label: string): string {
 `;
 }
 
+// Global Expand all / Collapse all for the tag groups (per-tag toggle already
+// exists in swagger-ui). A tag section is "open" when its operations are mounted
+// in the DOM; clicking the tag header toggles it. Mounts left of Authorize.
+const COLLAPSE_CONTROLS_JS = `
+(function () {
+  function isOpen(sec) { return !!sec.querySelector('.opblock'); }
+  function setAll(open) {
+    document.querySelectorAll('.swagger-ui .opblock-tag-section').forEach(function (sec) {
+      if (isOpen(sec) !== open) {
+        var tag = sec.querySelector('.opblock-tag');
+        if (tag) tag.click();
+      }
+    });
+  }
+  function mount() {
+    if (document.getElementById('api-collapse-controls')) return true;
+    var authWrap = document.querySelector('.swagger-ui .scheme-container .auth-wrapper');
+    if (!authWrap) return false;
+    var bar = document.createElement('div'); bar.id = 'api-collapse-controls';
+    var ex = document.createElement('button');
+    ex.type = 'button'; ex.className = 'api-collapse-btn'; ex.textContent = 'Expand all';
+    var co = document.createElement('button');
+    co.type = 'button'; co.className = 'api-collapse-btn'; co.textContent = 'Collapse all';
+    ex.addEventListener('click', function () { setAll(true); });
+    co.addEventListener('click', function () { setAll(false); });
+    bar.appendChild(ex); bar.appendChild(co);
+    authWrap.insertBefore(bar, authWrap.firstChild);
+    return true;
+  }
+  var t = setInterval(function () { if (mount()) clearInterval(t); }, 400);
+  setTimeout(function () { clearInterval(t); }, 20000);
+})();
+`;
+
+// Per-operation "Copy MD" button + a top-bar "Copy Enums" button. Reads the live
+// spec from swagger-ui (window.ui), so no extra fetch is needed.
+const COPY_MARKDOWN_JS = `
+(function () {
+  function getSpec() {
+    try { return window.ui.specSelectors.specJson().toJS(); } catch (e) { return null; }
+  }
+  function refName(ref) { return typeof ref === 'string' ? ref.split('/').pop() : ''; }
+  function schemaName(s) {
+    if (!s) return '';
+    if (s.$ref) return refName(s.$ref);
+    if (s.type === 'array' && s.items) return schemaName(s.items) + '[]';
+    return s.type || 'object';
+  }
+  function clean(v) { return String(v == null ? '' : v).replace(/\\r?\\n/g, ' ').replace(/\\|/g, '\\\\|'); }
+  function deref(spec, schema) {
+    var guard = 0;
+    while (schema && schema.$ref && guard < 20) {
+      schema = (spec.components && spec.components.schemas && spec.components.schemas[refName(schema.$ref)]) || null;
+      guard++;
+    }
+    return schema;
+  }
+  function collectProps(spec, schema) {
+    schema = deref(spec, schema);
+    if (!schema || typeof schema !== 'object') return { order: [], props: {}, required: {} };
+    var props = {}; var required = {}; var order = [];
+    function add(s) {
+      s = deref(spec, s);
+      if (!s) return;
+      if (Array.isArray(s.allOf)) s.allOf.forEach(add);
+      (s.required || []).forEach(function (k) { required[k] = true; });
+      if (s.properties) {
+        Object.keys(s.properties).forEach(function (k) {
+          if (!(k in props)) order.push(k);
+          props[k] = s.properties[k];
+        });
+      }
+    }
+    add(schema);
+    return { order: order, props: props, required: required };
+  }
+  function enumValues(spec, s) {
+    var d = deref(spec, s);
+    if (!d) return null;
+    if (Array.isArray(d.enum)) return d.enum;
+    if (d.type === 'array' && d.items) {
+      var di = deref(spec, d.items);
+      if (di && Array.isArray(di.enum)) return di.enum;
+    }
+    return null;
+  }
+  function typeLabel(spec, s) {
+    if (!s) return '';
+    var base = schemaName(s);
+    var ev = enumValues(spec, s);
+    if (ev && ev.length) {
+      var shown = ev.slice(0, 12).map(String).join(' | ');
+      return base + ' (' + (ev.length > 12 ? shown + ' | …' : shown) + ')';
+    }
+    return base;
+  }
+  function opToMarkdown(spec, path, method) {
+    var op = spec && spec.paths && spec.paths[path] && spec.paths[path][method];
+    if (!op) return '';
+    var L = ['### \\\`' + method.toUpperCase() + '\\\` ' + path];
+    if (op.summary) L.push('', op.summary);
+    if (op.description) L.push('', op.description);
+    var sec = op.security || spec.security;
+    if (sec && sec.length) {
+      L.push('', '**Auth:** ' + sec.map(function (s) { return Object.keys(s).join(' + '); }).join(', '));
+    }
+    var params = op.parameters || [];
+    if (params.length) {
+      L.push('', '**Parameters**', '', '| Name | In | Type | Required | Description |', '| --- | --- | --- | --- | --- |');
+      params.forEach(function (p) {
+        L.push('| ' + clean(p.name) + ' | ' + clean(p.in) + ' | ' + clean(typeLabel(spec, p.schema)) + ' | ' + (p.required ? 'yes' : 'no') + ' | ' + clean(p.description) + ' |');
+      });
+    }
+    var rb = op.requestBody;
+    if (rb && rb.content) {
+      var ct = Object.keys(rb.content)[0];
+      var rbSchema = rb.content[ct] && rb.content[ct].schema;
+      L.push('', '**Request body** (' + ct + '): \\\`' + schemaName(rbSchema) + '\\\`');
+      var fields = collectProps(spec, rbSchema);
+      if (fields.order.length) {
+        L.push('', '| Field | Type | Required | Description |', '| --- | --- | --- | --- |');
+        fields.order.forEach(function (k) {
+          var p = fields.props[k] || {};
+          L.push('| ' + clean(k) + ' | ' + clean(typeLabel(spec, p)) + ' | ' + (fields.required[k] ? 'yes' : 'no') + ' | ' + clean(p.description) + ' |');
+        });
+      }
+    }
+    if (op.responses) {
+      L.push('', '**Responses**', '', '| Status | Body | Description |', '| --- | --- | --- |');
+      var successSchema = null;
+      Object.keys(op.responses).forEach(function (code) {
+        var r = op.responses[code] || {};
+        var body = '';
+        if (r.content) {
+          var rct = Object.keys(r.content)[0];
+          var rs = r.content[rct] && r.content[rct].schema;
+          if (rs) {
+            body = '\\\`' + clean(schemaName(rs)) + '\\\`';
+            if (!successSchema && code.charAt(0) === '2') successSchema = rs;
+          }
+        }
+        L.push('| ' + clean(code) + ' | ' + body + ' | ' + clean(r.description) + ' |');
+      });
+      var rf = collectProps(spec, successSchema);
+      if (rf.order.length) {
+        L.push('', '**Response body** \\\`' + schemaName(successSchema) + '\\\`', '', '| Field | Type | Required | Description |', '| --- | --- | --- | --- |');
+        rf.order.forEach(function (k) {
+          var p = rf.props[k] || {};
+          L.push('| ' + clean(k) + ' | ' + clean(typeLabel(spec, p)) + ' | ' + (rf.required[k] ? 'yes' : 'no') + ' | ' + clean(p.description) + ' |');
+        });
+      }
+    }
+    return L.join('\\n');
+  }
+  function enumsMarkdown(spec) {
+    var schemas = (spec && spec.components && spec.components.schemas) || {};
+    var L = ['## Enums'];
+    Object.keys(schemas).sort().forEach(function (name) {
+      var s = schemas[name];
+      var vals = s && Array.isArray(s.enum) ? s.enum : null;
+      if (!vals || !vals.length) return;
+      L.push('', '### ' + name, '', vals.map(function (v) { return '\\\`' + String(v) + '\\\`'; }).join(' | '));
+    });
+    return L.length > 1 ? L.join('\\n') : '';
+  }
+  function fallbackCopy(text) {
+    var ta = document.createElement('textarea');
+    ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.select();
+    try { document.execCommand('copy'); } catch (e) {}
+    document.body.removeChild(ta);
+  }
+  function copy(text, btn) {
+    var orig = btn.textContent;
+    function done() { btn.textContent = 'Copied!'; setTimeout(function () { btn.textContent = orig; }, 1200); }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done, function () { fallbackCopy(text); done(); });
+    } else { fallbackCopy(text); done(); }
+  }
+  function opInfo(block) {
+    var pathEl = block.querySelector('.opblock-summary-path, .opblock-summary-path__deprecated');
+    var methodEl = block.querySelector('.opblock-summary-method');
+    if (!pathEl || !methodEl) return null;
+    var path = (pathEl.getAttribute('data-path') || pathEl.textContent || '').trim();
+    return { path: path, method: (methodEl.textContent || '').trim().toLowerCase() };
+  }
+  function topbarActions() {
+    var box = document.getElementById('api-topbar-actions');
+    if (box) return box;
+    var bar = document.querySelector('.swagger-ui .topbar .topbar-wrapper') ||
+              document.querySelector('.swagger-ui .topbar');
+    if (!bar) return null;
+    box = document.createElement('div'); box.id = 'api-topbar-actions';
+    bar.appendChild(box);
+    return box;
+  }
+  function attach() {
+    document.querySelectorAll('.swagger-ui .opblock').forEach(function (block) {
+      var summary = block.querySelector('.opblock-summary');
+      if (!summary || summary.querySelector('.api-copy-md')) return;
+      var btn = document.createElement('button');
+      btn.type = 'button'; btn.className = 'api-copy-md'; btn.textContent = 'Copy MD';
+      btn.addEventListener('click', function (e) {
+        e.stopPropagation(); e.preventDefault();
+        var info = opInfo(block); var spec = getSpec();
+        if (!info || !spec) return;
+        var md = opToMarkdown(spec, info.path, info.method);
+        if (md) copy(md, btn);
+      });
+      summary.appendChild(btn);
+    });
+  }
+  function mountEnumsButton() {
+    var box = topbarActions();
+    if (!box || box.querySelector('.api-enums')) return;
+    var btn = document.createElement('button');
+    btn.type = 'button'; btn.className = 'api-enums'; btn.textContent = 'Copy Enums';
+    btn.addEventListener('click', function () {
+      var spec = getSpec(); if (!spec) return;
+      var md = enumsMarkdown(spec);
+      if (md) copy(md, btn);
+    });
+    box.appendChild(btn);
+  }
+  function tick() { attach(); mountEnumsButton(); }
+  try {
+    var iv = setInterval(tick, 600);
+    setTimeout(function () { clearInterval(iv); }, 20000);
+    new MutationObserver(tick).observe(document.body, { childList: true, subtree: true });
+  } catch (e) {}
+})();
+`;
+
+// Top-bar button (separated from content) that downloads the converted Postman
+// collection for this doc.
+function postmanButtonJs(href: string): string {
+  return `
+(function () {
+  var HREF = ${JSON.stringify(href)};
+  function topbarActions() {
+    var box = document.getElementById('api-topbar-actions');
+    if (box) return box;
+    var bar = document.querySelector('.swagger-ui .topbar .topbar-wrapper') ||
+              document.querySelector('.swagger-ui .topbar');
+    if (!bar) return null;
+    box = document.createElement('div'); box.id = 'api-topbar-actions';
+    bar.appendChild(box);
+    return box;
+  }
+  function mount() {
+    var box = topbarActions(); if (!box) return false;
+    if (box.querySelector('.api-postman')) return true;
+    var a = document.createElement('a');
+    a.className = 'api-postman'; a.href = HREF; a.setAttribute('download', '');
+    a.textContent = 'Export Postman Collection';
+    box.appendChild(a);
+    return true;
+  }
+  var t = setInterval(function () { if (mount()) clearInterval(t); }, 400);
+  setTimeout(function () { clearInterval(t); }, 20000);
+})();
+`;
+}
+
+// Convert the in-memory OpenAPI document to a Postman Collection v2.1.
+function buildPostmanCollection(document: OpenAPIObject): Promise<object> {
+  return new Promise((resolve, reject) => {
+    convertOpenApiToPostman(
+      { type: 'json', data: document as object },
+      { folderStrategy: 'Tags', requestParametersResolution: 'Example' },
+      (err, result) => {
+        if (err) {
+          reject(new Error(err.message));
+          return;
+        }
+        const data = result?.output?.[0]?.data;
+        if (!result?.result || !data) {
+          reject(
+            new Error(
+              result?.reason ?? 'Postman conversion produced no output',
+            ),
+          );
+          return;
+        }
+        resolve(data);
+      },
+    );
+  });
+}
+
+// GET /<route>/postman.json — converts once on first request, caches the JSON.
+function registerPostmanRoute(
+  expressApp: Express,
+  route: string,
+  document: OpenAPIObject,
+): void {
+  let cached: string | null = null;
+  let pending: Promise<string> | null = null;
+  expressApp.get(`/${route}/postman.json`, (_req: Request, res: Response) => {
+    const send = (json: string): void => {
+      res.setHeader('Content-Type', 'application/json; charset=utf-8');
+      res.setHeader(
+        'Content-Disposition',
+        'attachment; filename="openapi.postman_collection.json"',
+      );
+      res.send(json);
+    };
+    if (cached) {
+      send(cached);
+      return;
+    }
+    pending ??= buildPostmanCollection(document).then((collection) => {
+      cached = JSON.stringify(collection);
+      return cached;
+    });
+    pending.then(send).catch((e: unknown) => {
+      pending = null;
+      res.status(500).json({
+        message: 'Postman conversion failed',
+        error: e instanceof Error ? e.message : String(e),
+      });
+    });
+  });
+}
+
 export function setupSwagger(
   app: INestApplication,
   config: ConfigService,
@@ -174,9 +522,9 @@ export function setupSwagger(
   );
   const docsRoute = `${docsMount}/${DOCS_PATH}`;
   const mobileRoute = `${docsMount}/mobile/${DOCS_PATH}`;
+  const expressApp = app.getHttpAdapter().getInstance() as Express;
   const basicAuth = getBasicAuth(config);
   if (basicAuth) {
-    const expressApp = app.getHttpAdapter().getInstance() as Express;
     for (const route of [docsRoute, mobileRoute]) {
       const basePath = `/${route}`;
       expressApp.use(basePath, createBasicAuthMiddleware(basicAuth));
@@ -205,18 +553,28 @@ export function setupSwagger(
   registerErrorCodeSchema(fullDocument);
   const mobileDocument = filterDocumentByTags(fullDocument, MOBILE_TAGS);
 
+  // Postman collection downloads (converted lazily + cached). Registered under
+  // the docs route so any configured basic-auth middleware already covers them.
+  registerPostmanRoute(expressApp, docsRoute, fullDocument);
+  registerPostmanRoute(expressApp, mobileRoute, mobileDocument);
+
   const mountDoc = (
     route: string,
     siteTitle: string,
     document: OpenAPIObject,
     crossLink: { readonly href: string; readonly label: string },
+    postmanHref: string,
   ): void => {
     SwaggerModule.setup(route, app, document, {
       useGlobalPrefix: false,
       customSiteTitle: siteTitle,
       customCss: BRAND_CSS,
       customJsStr:
-        ENDPOINT_FILTER_JS + crossLinkBannerJs(crossLink.href, crossLink.label),
+        ENDPOINT_FILTER_JS +
+        COLLAPSE_CONTROLS_JS +
+        COPY_MARKDOWN_JS +
+        postmanButtonJs(postmanHref) +
+        crossLinkBannerJs(crossLink.href, crossLink.label),
       jsonDocumentUrl: `${route}/openapi.json`,
       swaggerOptions: {
         persistAuthorization: true,
@@ -231,18 +589,19 @@ export function setupSwagger(
     });
   };
 
-  mountDoc(docsRoute, 'NestJS Boilerplate | API Docs', fullDocument, {
-    href: `/${mobileRoute}`,
-    label: 'Mobile API Docs →',
-  });
+  mountDoc(
+    docsRoute,
+    'NestJS Boilerplate | API Docs',
+    fullDocument,
+    { href: `/${mobileRoute}`, label: 'Mobile API Docs →' },
+    `/${docsRoute}/postman.json`,
+  );
   mountDoc(
     mobileRoute,
     'NestJS Boilerplate | Mobile API Docs',
     mobileDocument,
-    {
-      href: `/${docsRoute}`,
-      label: '← Full API Docs',
-    },
+    { href: `/${docsRoute}`, label: '← Full API Docs' },
+    `/${mobileRoute}/postman.json`,
   );
   return true;
 }
