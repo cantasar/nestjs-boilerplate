@@ -14,6 +14,7 @@ export enum CommonErrorCode {
   UNAUTHORIZED = 'COMMON_UNAUTHORIZED',
   CONFLICT = 'COMMON_CONFLICT',
   FORBIDDEN_ADMIN_ONLY = 'COMMON_FORBIDDEN_ADMIN_ONLY',
+  FORBIDDEN_MISSING_PERMISSION = 'COMMON_FORBIDDEN_MISSING_PERMISSION',
 }
 
 export const COMMON_ERRORS: Record<CommonErrorCode, ErrorCodeDefinition> = {
@@ -51,6 +52,11 @@ export const COMMON_ERRORS: Record<CommonErrorCode, ErrorCodeDefinition> = {
     code: CommonErrorCode.FORBIDDEN_ADMIN_ONLY,
     httpStatus: HttpStatus.FORBIDDEN,
     message: 'Admin access required',
+  },
+  [CommonErrorCode.FORBIDDEN_MISSING_PERMISSION]: {
+    code: CommonErrorCode.FORBIDDEN_MISSING_PERMISSION,
+    httpStatus: HttpStatus.FORBIDDEN,
+    message: 'Insufficient permissions',
   },
 };
 

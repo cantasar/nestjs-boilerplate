@@ -9,6 +9,7 @@ import { validateEnv } from './modules/shared/common/config/env.validation';
 import { JwtAuthGuard } from './modules/shared/common/guards/jwt.guard';
 import { CommonModule } from './modules/shared/common/common.module';
 import { ResponseTransformInterceptor } from './modules/shared/common/interceptors/response-transform.interceptor';
+import { CacheInterceptor } from './modules/shared/common/interceptors/cache.interceptor';
 import { AuditModule } from './modules/shared/common/audit/audit.module';
 import { AuditContextInterceptor } from './modules/shared/common/audit/audit-context.interceptor';
 import { AuditInterceptor } from './modules/shared/common/audit/audit.interceptor';
@@ -101,6 +102,13 @@ import { HealthModule } from './modules/platform/health/health.module';
       // AuditSink. Innermost interceptor → observes the raw handler result.
       provide: APP_INTERCEPTOR,
       useExisting: AuditInterceptor,
+    },
+    {
+      // Innermost interceptor: caches/serves the raw handler result for
+      // @Cacheable handlers (and evicts for @CacheEvict), before the outer
+      // interceptors envelope it. No-op for undecorated routes.
+      provide: APP_INTERCEPTOR,
+      useClass: CacheInterceptor,
     },
     {
       provide: APP_GUARD,
