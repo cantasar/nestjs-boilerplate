@@ -1,7 +1,9 @@
-import { Module, RequestMethod } from '@nestjs/common';
+import { Module, RequestMethod, type OnModuleDestroy } from '@nestjs/common';
 import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
+import { ThrottlerStorageRedisService } from '@nest-lab/throttler-storage-redis';
+import Redis from 'ioredis';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { ScheduleModule } from '@nestjs/schedule';
 import { LoggerModule } from 'nestjs-pino';
@@ -29,6 +31,12 @@ import { AdminModule } from './modules/admin/admin.module';
 import { AuthenticatedConsentModule } from './modules/user/consent/authenticated-consent.module';
 import { PublicLegalDocumentsModule } from './modules/user/legal-documents/public-legal-documents.module';
 import { HealthModule } from './modules/platform/health/health.module';
+import { CountriesModule } from './modules/user/countries/countries.module';
+
+// Dedicated throttler ioredis connection, created in the factory and held here
+// so AppModule can close it on shutdown (ThrottlerStorageRedisService does not
+// own/close a connection passed to it) — avoids a leak on teardown/test reboots.
+let throttlerRedis: Redis | undefined;
 
 @Module({
   imports: [
@@ -54,12 +62,22 @@ import { HealthModule } from './modules/platform/health/health.module';
     }),
     ThrottlerModule.forRootAsync({
       imports: [ConfigModule],
-      useFactory: (config: ConfigService) => [
-        {
-          ttl: config.getOrThrow<number>('RATE_LIMIT_TTL'),
-          limit: config.getOrThrow<number>('RATE_LIMIT_MAX'),
-        },
-      ],
+      useFactory: (config: ConfigService) => ({
+        throttlers: [
+          {
+            ttl: config.getOrThrow<number>('RATE_LIMIT_TTL'),
+            limit: config.getOrThrow<number>('RATE_LIMIT_MAX'),
+          },
+        ],
+        // Redis-backed storage so rate limits stay consistent across pods.
+        // Own the ioredis instance (keyPrefix isolates throttle keys from the
+        // shared REDIS_CLIENT namespace) so it can be closed on shutdown.
+        storage: new ThrottlerStorageRedisService(
+          (throttlerRedis = new Redis(config.getOrThrow<string>('REDIS_URL'), {
+            keyPrefix: config.getOrThrow<string>('RATE_LIMIT_REDIS_PREFIX'),
+          })),
+        ),
+      }),
       inject: [ConfigService],
     }),
     CommonModule,
@@ -80,6 +98,7 @@ import { HealthModule } from './modules/platform/health/health.module';
     AuthenticatedConsentModule,
     PublicLegalDocumentsModule,
     HealthModule,
+    CountriesModule,
   ],
   providers: [
     {
@@ -121,4 +140,12 @@ import { HealthModule } from './modules/platform/health/health.module';
     },
   ],
 })
-export class AppModule {}
+export class AppModule implements OnModuleDestroy {
+  // void-ok: closes the dedicated throttler connection on shutdown.
+  async onModuleDestroy(): Promise<void> {
+    if (throttlerRedis) {
+      await throttlerRedis.quit();
+      throttlerRedis = undefined;
+    }
+  }
+}

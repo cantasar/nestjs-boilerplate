@@ -17,8 +17,10 @@ import type { SuccessEnvelope } from '../types/response-envelope.type';
  *  - `undefined` / `null` (incl. 204 handlers) → `{ success: true, data: null }`.
  *  - Everything else → `{ success: true, data }`.
  *
- * The error envelope is the filter's job; this interceptor only ever runs on
- * the success path.
+ * Payload SHAPE is never mutated here: presentation transforms (e.g. Date →
+ * Unix seconds, dropping nulls) belong in the feature's mapper so the DTO type
+ * and the wire format stay in agreement. The error envelope is the filter's
+ * job; this interceptor only ever runs on the success path.
  */
 @Injectable()
 export class ResponseTransformInterceptor<T> implements NestInterceptor<

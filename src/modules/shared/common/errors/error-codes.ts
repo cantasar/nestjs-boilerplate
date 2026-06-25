@@ -15,6 +15,9 @@ export enum CommonErrorCode {
   CONFLICT = 'COMMON_CONFLICT',
   FORBIDDEN_ADMIN_ONLY = 'COMMON_FORBIDDEN_ADMIN_ONLY',
   FORBIDDEN_MISSING_PERMISSION = 'COMMON_FORBIDDEN_MISSING_PERMISSION',
+  BUSINESS_RULE_VIOLATION = 'COMMON_BUSINESS_RULE_VIOLATION',
+  RATE_LIMITED = 'COMMON_RATE_LIMITED',
+  INVALID_STATE_TRANSITION = 'COMMON_INVALID_STATE_TRANSITION',
 }
 
 export const COMMON_ERRORS: Record<CommonErrorCode, ErrorCodeDefinition> = {
@@ -57,6 +60,21 @@ export const COMMON_ERRORS: Record<CommonErrorCode, ErrorCodeDefinition> = {
     code: CommonErrorCode.FORBIDDEN_MISSING_PERMISSION,
     httpStatus: HttpStatus.FORBIDDEN,
     message: 'Insufficient permissions',
+  },
+  [CommonErrorCode.BUSINESS_RULE_VIOLATION]: {
+    code: CommonErrorCode.BUSINESS_RULE_VIOLATION,
+    httpStatus: HttpStatus.BAD_REQUEST,
+    message: 'Business rule violation',
+  },
+  [CommonErrorCode.RATE_LIMITED]: {
+    code: CommonErrorCode.RATE_LIMITED,
+    httpStatus: HttpStatus.TOO_MANY_REQUESTS,
+    message: 'Too many requests',
+  },
+  [CommonErrorCode.INVALID_STATE_TRANSITION]: {
+    code: CommonErrorCode.INVALID_STATE_TRANSITION,
+    httpStatus: HttpStatus.CONFLICT,
+    message: 'Invalid state transition',
   },
 };
 

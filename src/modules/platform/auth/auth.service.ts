@@ -10,11 +10,12 @@ import {
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
-import { randomInt, randomUUID, timingSafeEqual } from 'crypto';
+import { randomUUID, timingSafeEqual } from 'crypto';
 import type * as jwt from 'jsonwebtoken';
 import { UserRepository } from '../../shared/database/repositories/user.repository';
 import { MailQueueService } from '../mail/queue/mail-queue.service';
 import { RedisService } from '../../shared/redis/redis.service';
+import { generateOtpCode } from '../../shared/common/utils/otp.util';
 import {
   AUTH_CONSTANTS,
   AUTH_CONFIG_KEYS,
@@ -208,7 +209,7 @@ export class AuthService {
     await this.ensureForgotPasswordRateLimit(email);
     const user = await this.userRepository.findByEmail(email);
     if (!user) return;
-    const code = this.generateOtpCode();
+    const code = generateOtpCode();
     const key = this.getResetPasswordKey(email);
     const ttl = this.configService.getOrThrow<number>('REDIS_TTL');
     await this.redisService.setWithExpirySeconds(key, code, ttl);
@@ -319,7 +320,7 @@ export class AuthService {
     userId: number,
     email: string,
   ): Promise<OtpSession> {
-    const otp = this.generateOtpCode();
+    const otp = generateOtpCode();
     const sessionToken = randomUUID();
     const ttl = this.getConfigNumber(
       AUTH_CONFIG_KEYS.EMAIL_VERIFY_SESSION_TTL_SECONDS,
@@ -393,7 +394,7 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials');
 
     await this.assertEmailLoginRateLimit(email);
-    const otp = this.generateOtpCode();
+    const otp = generateOtpCode();
     const sessionToken = randomUUID();
     const ttl = this.getConfigNumber(
       AUTH_CONFIG_KEYS.EMAIL_LOGIN_SESSION_TTL_SECONDS,
@@ -597,7 +598,7 @@ export class AuthService {
   /** Sends an OTP over SMS and returns it (for storage in the session). */
   private async sendPhoneOtp(phone: string): Promise<string> {
     await this.assertPhoneOtpRateLimit(phone);
-    const otp = this.generateOtpCode();
+    const otp = generateOtpCode();
     try {
       await this.smsSender.send(phone, `Your verification code is ${otp}`);
     } catch (error) {
@@ -780,11 +781,6 @@ export class AuthService {
 
   private getResetPasswordKey(email: string): string {
     return `reset_pass:${email}`;
-  }
-
-  private generateOtpCode(): string {
-    const value = randomInt(AUTH_CONSTANTS.OTP_MIN, AUTH_CONSTANTS.OTP_MAX + 1);
-    return value.toString();
   }
 
   /** Upper bound for the attempt-counter TTL (longest session kind). */

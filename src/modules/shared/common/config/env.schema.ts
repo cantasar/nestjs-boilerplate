@@ -30,6 +30,7 @@ export const envSchema = z
     MAIL_FROM_NAME: z.string().optional(),
     RATE_LIMIT_TTL: z.coerce.number().int().positive().default(60000),
     RATE_LIMIT_MAX: z.coerce.number().int().positive().default(100),
+    RATE_LIMIT_REDIS_PREFIX: z.string().default('throttle:'),
     CORS_ORIGIN: z.string().optional(),
     BODY_PARSER_LIMIT: z.string().default('1mb'),
     SWAGGER_ENABLED: z.enum(['true', 'false']).optional(),
