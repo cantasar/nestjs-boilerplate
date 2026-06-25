@@ -1,8 +1,16 @@
 packages:
   - '.'
 
-ignoredBuiltDependencies:
-  - '@firebase/util'
-  - '@nestjs/core'
-  - protobufjs
-  - unrs-resolver
+# pnpm 11 default-deny build policy: a dependency's install lifecycle scripts run
+# only when allowed here. The native addons (bcrypt, esbuild, sentry profiler,
+# unrs-resolver, msgpackr-extract) MUST build to work at runtime; @nestjs/core
+# and @scarf/scarf are funding/telemetry pings, allowed so no build is "ignored"
+# (which would fail the install under the default strictDepBuilds).
+allowBuilds:
+  '@nestjs/core': true
+  '@scarf/scarf': true
+  '@sentry/node-cpu-profiler': true
+  bcrypt: true
+  esbuild: true
+  msgpackr-extract: true
+  unrs-resolver: true

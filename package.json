@@ -2,10 +2,10 @@
   "name": "nestjs-boilerplate",
   "version": "1.0.0",
   "private": false,
-  "packageManager": "pnpm@9.15.9",
+  "packageManager": "pnpm@11.8.0",
   "engines": {
     "node": ">=24",
-    "pnpm": ">=9"
+    "pnpm": ">=11"
   },
   "license": "UNLICENSED",
   "scripts": {
