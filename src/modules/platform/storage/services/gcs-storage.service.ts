@@ -11,6 +11,15 @@ import type {
   StorageObjectInfo,
   StorageService,
 } from '../interfaces/storage.types';
+import { withRetry } from '../../../shared/common/utils/retry.util';
+import { mapWithConcurrency } from '../../../shared/common/utils/map-with-concurrency';
+import { isTransientSigningError } from '../utils/transient-signing-error';
+import {
+  SIGNING_MAX_CONCURRENCY,
+  SIGNING_RETRY_ATTEMPTS,
+  SIGNING_RETRY_BASE_DELAY_MS,
+  SIGNING_RETRY_MAX_JITTER_MS,
+} from '../constants/signing-retry.constants';
 
 /**
  * Google Cloud Storage reference implementation of the {@link StorageService}
@@ -40,29 +49,48 @@ export class GcsStorageService implements StorageService {
         `${params.contentLengthRange.min},${params.contentLengthRange.max}`;
     }
 
-    const [url] = await this.bucket()
-      .file(params.key)
-      .getSignedUrl({
-        version: 'v4',
-        action: 'write',
-        expires: Date.now() + expiresIn * 1000,
-        contentType: params.contentType,
-        ...(Object.keys(extensionHeaders).length > 0
-          ? { extensionHeaders }
-          : {}),
-      });
-    return url;
+    return this.signWithRetry(() =>
+      this.bucket()
+        .file(params.key)
+        .getSignedUrl({
+          version: 'v4',
+          action: 'write',
+          expires: Date.now() + expiresIn * 1000,
+          contentType: params.contentType,
+          ...(Object.keys(extensionHeaders).length > 0
+            ? { extensionHeaders }
+            : {}),
+        }),
+    );
   }
 
   async presignRead(params: PresignReadParams): Promise<string> {
     const expiresIn = params.expiresIn ?? this.getDefaultExpiry();
-    const [url] = await this.bucket()
-      .file(params.key)
-      .getSignedUrl({
-        version: 'v4',
-        action: 'read',
-        expires: Date.now() + expiresIn * 1000,
-      });
+    return this.signWithRetry(() =>
+      this.bucket()
+        .file(params.key)
+        .getSignedUrl({
+          version: 'v4',
+          action: 'read',
+          expires: Date.now() + expiresIn * 1000,
+        }),
+    );
+  }
+
+  /**
+   * V4 signing on Cloud Run (no local key) hits the IAM signBlob API, which can
+   * drop the connection transiently. Retry those with backoff + jitter; surface
+   * non-transient (auth/permission) errors immediately.
+   */
+  private async signWithRetry(
+    sign: () => Promise<[string, ...unknown[]]>,
+  ): Promise<string> {
+    const [url] = await withRetry(sign, {
+      attempts: SIGNING_RETRY_ATTEMPTS,
+      baseDelayMs: SIGNING_RETRY_BASE_DELAY_MS,
+      maxJitterMs: SIGNING_RETRY_MAX_JITTER_MS,
+      shouldRetry: isTransientSigningError,
+    });
     return url;
   }
 
@@ -154,19 +182,27 @@ export class GcsStorageService implements StorageService {
     if (uniqueKeys.length === 0) return result;
 
     const ttl = expiresIn ?? this.getDefaultExpiry();
-    try {
-      const urls = await Promise.all(
-        uniqueKeys.map((key) => this.presignRead({ key, expiresIn: ttl })),
-      );
-      urls.forEach((url, idx) => result.set(uniqueKeys[idx]!, url));
-      return result;
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      this.logger.error(`presignReadMany failed: ${message}`);
-      throw new InternalServerErrorException(
-        `Failed to generate presigned read URLs: ${message}`,
+    // Cap concurrent signBlob calls and tolerate per-key failures: one flaky
+    // key must not blank every URL. Callers treat a missing key as absent.
+    const settled = await mapWithConcurrency(
+      uniqueKeys,
+      SIGNING_MAX_CONCURRENCY,
+      (key) => this.presignRead({ key, expiresIn: ttl }),
+    );
+    let failed = 0;
+    settled.forEach((outcome, idx) => {
+      if (outcome.status === 'fulfilled') {
+        result.set(uniqueKeys[idx]!, outcome.value);
+      } else {
+        failed++;
+      }
+    });
+    if (failed > 0) {
+      this.logger.warn(
+        `presignReadMany: ${failed}/${uniqueKeys.length} keys failed to sign`,
       );
     }
+    return result;
   }
 
   private bucket(): Bucket {
