@@ -32,7 +32,14 @@ export class FirstAdminSeed implements OnApplicationBootstrap {
 
   // void-ok: bootstrap hook — side-effecting seed, no result.
   async onApplicationBootstrap(): Promise<void> {
-    const email = this.config.get<string>('FIRST_ADMIN_EMAIL');
+    // Normalize exactly like the login path (AuthService.normalizeEmail):
+    // a mixed-case FIRST_ADMIN_EMAIL would otherwise be stored verbatim and
+    // the lowercased login lookup would never find it — an admin that can
+    // never sign in, with zero diagnostics.
+    const email = this.config
+      .get<string>('FIRST_ADMIN_EMAIL')
+      ?.trim()
+      .toLowerCase();
     const password = this.config.get<string>('FIRST_ADMIN_PASSWORD');
 
     if (!email || !password) {
@@ -72,7 +79,9 @@ export class FirstAdminSeed implements OnApplicationBootstrap {
 
     this.logger.log(
       inserted.length > 0
-        ? 'First admin created'
+        ? 'First admin user created (NOTE: no role column exists yet — wire ' +
+            'your role/permission assignment here or admin-guarded routes ' +
+            'will 403 this account)'
         : 'First admin already exists (concurrent seed)',
     );
   }

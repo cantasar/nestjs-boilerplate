@@ -6,7 +6,7 @@ ENV PNPM_HOME=/pnpm \
     PATH=/pnpm:$PATH \
     HUSKY=0 \
     CI=1
-RUN corepack enable && corepack prepare pnpm@9.15.9 --activate
+RUN corepack enable && corepack prepare pnpm@11.8.0 --activate
 WORKDIR /app
 
 # ---------- deps (full, for build) ----------

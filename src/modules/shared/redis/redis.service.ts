@@ -73,13 +73,17 @@ export class RedisService implements OnApplicationBootstrap {
     }
   }
 
-  /** Cache-aside JSON write with TTL. */
+  /** Cache-aside JSON write with TTL. `undefined` is rejected — it does not
+   *  survive JSON round-tripping (JSON.stringify(undefined) is not a string). */
   async setJson(
     key: string,
     value: unknown, // boundary: validated — arbitrary JSON-serializable value
     ttlSeconds: number,
   ): Promise<void> {
     // void-ok
+    if (value === undefined) {
+      throw new Error(`setJson(${key}): undefined is not JSON-serializable`);
+    }
     await this.client.set(key, JSON.stringify(value), 'EX', ttlSeconds);
   }
 
@@ -95,6 +99,10 @@ export class RedisService implements OnApplicationBootstrap {
    * Atomic INCR that sets the TTL on the first increment in a single
    * round-trip. Prevents a crash between INCR and a separate EXPIRE from
    * leaving a counter that never resets (permanent rate-limit lockout).
+   *
+   * CAVEAT: the TTL is only set when the script observes count===1. If the key
+   * was ever created by a plain `incr()` first, it already sits at >=1 and
+   * will never receive a TTL — do not mix the two primitives on one key.
    */
   async incrWithTtlSeconds(key: string, ttlSeconds: number): Promise<number> {
     const result = await this.client.eval(
@@ -115,7 +123,10 @@ export class RedisService implements OnApplicationBootstrap {
   }
 
   /** Pipelined HINCRBY of many fields on one hash — a single round-trip instead
-   *  of one per field. */
+   *  of one per field. Per-command errors are surfaced: ioredis resolves
+   *  `exec()` with `[err, result]` pairs instead of rejecting, so without this
+   *  check a WRONGTYPE (e.g. the key clobbered by a string SET) would silently
+   *  drop every increment. */
   async hincrbyMany(
     key: string,
     fields: string[],
@@ -125,7 +136,9 @@ export class RedisService implements OnApplicationBootstrap {
     if (fields.length === 0) return;
     const pipeline = this.client.pipeline();
     for (const field of fields) pipeline.hincrby(key, field, increment);
-    await pipeline.exec();
+    const results = await pipeline.exec();
+    const firstError = results?.find(([err]) => err != null)?.[0];
+    if (firstError) throw firstError;
   }
 
   async hgetall(key: string): Promise<Record<string, string>> {
