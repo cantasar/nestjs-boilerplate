@@ -2,6 +2,10 @@ export const AUTH_CONSTANTS = {
   BCRYPT_SALT_ROUNDS: 12,
   FORGOT_PASSWORD_REQUESTS_LIMIT: 3,
   FORGOT_PASSWORD_WINDOW_SECONDS: 60,
+  // Lifetime of the emailed password-reset code (and its attempt counter).
+  // Deliberately its own constant — the generic cache TTL (REDIS_TTL) is a
+  // tuning knob and must not silently shorten/lengthen a security window.
+  PASSWORD_RESET_CODE_TTL_SECONDS: 900,
 } as const;
 
 /**

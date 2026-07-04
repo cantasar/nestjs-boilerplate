@@ -91,6 +91,36 @@ export const envSchema = z
   })
   .catchall(z.unknown())
   .superRefine((env, ctx) => {
+    // The dev-friendly JWT_SECRET default must never reach production: signed
+    // tokens would be forgeable by anyone. Require a real, >=32-char secret.
+    if (
+      env.NODE_ENV === 'production' &&
+      (env.JWT_SECRET === 'secret' || env.JWT_SECRET.length < 32)
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['JWT_SECRET'],
+        message:
+          'JWT_SECRET must be a non-default value of at least 32 characters when NODE_ENV is production',
+      });
+    }
+    // First-admin seed is opt-in: both vars are required together.
+    if (env.FIRST_ADMIN_EMAIL && !env.FIRST_ADMIN_PASSWORD) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['FIRST_ADMIN_PASSWORD'],
+        message:
+          'FIRST_ADMIN_PASSWORD is required when FIRST_ADMIN_EMAIL is set',
+      });
+    }
+    if (env.FIRST_ADMIN_PASSWORD && !env.FIRST_ADMIN_EMAIL) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['FIRST_ADMIN_EMAIL'],
+        message:
+          'FIRST_ADMIN_EMAIL is required when FIRST_ADMIN_PASSWORD is set',
+      });
+    }
     // GCS is opt-in: enabling it (GCS_BUCKET set) requires a project id.
     if (env.GCS_BUCKET && !env.GCP_PROJECT_ID) {
       ctx.addIssue({

@@ -43,8 +43,7 @@ describe('AuthService', () => {
     }),
   };
   const mockRedisService = {
-    incr: jest.fn(),
-    expire: jest.fn(),
+    incrWithTtlSeconds: jest.fn(),
     setWithExpirySeconds: jest.fn(),
     get: jest.fn(),
     del: jest.fn(),
@@ -203,6 +202,72 @@ describe('AuthService', () => {
 
       await expect(service.login(inputDto)).rejects.toThrow(
         UnauthorizedException,
+      );
+    });
+  });
+
+  describe('refresh', () => {
+    const storedUser = {
+      id: 1,
+      email: 'test@example.com',
+      isActive: true,
+      refreshToken: 'stored-hash',
+    };
+
+    it('should reject an access token presented as a refresh token', async () => {
+      mockJwtService.verify.mockReturnValue({
+        sub: 1,
+        email: 'test@example.com',
+        tokenType: 'access',
+      });
+
+      await expect(service.refresh('access-token')).rejects.toThrow(
+        UnauthorizedException,
+      );
+      expect(mockUserRepository.findById).not.toHaveBeenCalled();
+    });
+
+    it('should reject when the user is inactive', async () => {
+      mockJwtService.verify.mockReturnValue({
+        sub: 1,
+        email: 'test@example.com',
+        tokenType: 'refresh',
+      });
+      mockUserRepository.findById.mockResolvedValue({
+        ...storedUser,
+        isActive: false,
+      });
+
+      await expect(service.refresh('refresh-token')).rejects.toThrow(
+        UnauthorizedException,
+      );
+      expect(mockUserRepository.updateRefreshToken).not.toHaveBeenCalled();
+    });
+
+    it('should rotate tokens and sign type-discriminated payloads', async () => {
+      mockJwtService.verify.mockReturnValue({
+        sub: 1,
+        email: 'test@example.com',
+        tokenType: 'refresh',
+      });
+      mockUserRepository.findById.mockResolvedValue(storedUser);
+      mockUserRepository.updateRefreshToken.mockResolvedValue(undefined);
+
+      const actualResult = await service.refresh('refresh-token');
+
+      expect(actualResult).toHaveProperty('accessToken');
+      expect(actualResult).toHaveProperty('refreshToken');
+      expect(mockJwtService.signAsync).toHaveBeenCalledWith(
+        expect.objectContaining({ tokenType: 'access' }),
+        expect.anything(),
+      );
+      expect(mockJwtService.signAsync).toHaveBeenCalledWith(
+        expect.objectContaining({ tokenType: 'refresh' }),
+        expect.anything(),
+      );
+      expect(mockUserRepository.updateRefreshToken).toHaveBeenCalledWith(
+        1,
+        'hashed',
       );
     });
   });
