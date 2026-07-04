@@ -21,4 +21,5 @@ export const QUEUE_NAMES = {
   SMS: 'sms-send',
   NOTIFICATION_BROADCAST: 'notification-broadcast',
   MEDIA_PROCESSING: 'media-processing',
+  WEBHOOK_DELIVERY: 'webhook-delivery',
 } as const;
