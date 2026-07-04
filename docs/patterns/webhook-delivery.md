@@ -41,7 +41,9 @@ URL + secret, so secrets never enter Redis job payloads).
    // buffer used above is the exact bytes; JSON.parse only after verifying.
    ```
    Never re-serialize parsed JSON to verify — key order/whitespace must match.
-2. **Return 2xx to ack.** Any non-2xx (or timeout) triggers a retry.
+2. **Return 2xx to ack.** A 5xx/408/429, a network error, or the sender-side
+   15s timeout triggers a retry; any other 4xx is a deterministic failure and
+   fails WITHOUT retry. Redirects are never followed (3xx = failure).
 3. **Idempotency**: dedupe/upsert by your item's natural key + the batch
    version in `meta` (e.g. `generatedAt`); ignore an older version than the
    one you last stored. There is no per-request event id.

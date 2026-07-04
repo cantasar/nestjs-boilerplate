@@ -116,8 +116,8 @@ describe('WebhookDeliveryProcessor', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it('signs the exact serialized body and POSTs with the header', async () => {
-    fetchMock.mockResolvedValue({ ok: true });
+  it('signs the exact serialized body and POSTs with timeout + no-redirect', async () => {
+    fetchMock.mockResolvedValue({ ok: true, text: async () => '' });
     const processor = new WebhookDeliveryProcessor(
       configWith({
         TEST_WEBHOOK_URL: 'https://receiver',
@@ -129,7 +129,12 @@ describe('WebhookDeliveryProcessor', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const [url, init] = fetchMock.mock.calls[0] as [
       string,
-      { headers: Record<string, string>; body: string },
+      {
+        headers: Record<string, string>;
+        body: string;
+        signal: AbortSignal;
+        redirect: string;
+      },
     ];
     expect(url).toBe('https://receiver');
     const body = JSON.parse(init.body) as Record<string, unknown>;
@@ -142,13 +147,18 @@ describe('WebhookDeliveryProcessor', () => {
     expect(init.headers['X-Webhook-Signature']).toBe(
       signWebhookBody('s3cr3t', init.body),
     );
+    // A hung receiver must not pin the worker; a 3xx must never replay the
+    // signed body at another host.
+    expect(init.signal).toBeInstanceOf(AbortSignal);
+    expect(init.redirect).toBe('error');
   });
 
-  it('throws on a non-2xx response so BullMQ retries', async () => {
+  it('throws a retryable error on 5xx so BullMQ retries', async () => {
     fetchMock.mockResolvedValue({
       ok: false,
       status: 502,
       statusText: 'Bad Gateway',
+      text: async () => '',
     });
     const processor = new WebhookDeliveryProcessor(
       configWith({
@@ -157,5 +167,30 @@ describe('WebhookDeliveryProcessor', () => {
       }),
     );
     await expect(processor.process(job())).rejects.toThrow('502');
+  });
+
+  it('fails WITHOUT retry on a deterministic 4xx (UnrecoverableError)', async () => {
+    fetchMock.mockResolvedValue({
+      ok: false,
+      status: 400,
+      statusText: 'Bad Request',
+      text: async () => '',
+    });
+    const processor = new WebhookDeliveryProcessor(
+      configWith({
+        TEST_WEBHOOK_URL: 'https://receiver',
+        TEST_WEBHOOK_SECRET: 's3cr3t',
+      }),
+    );
+    await expect(processor.process(job())).rejects.toMatchObject({
+      name: 'UnrecoverableError',
+    });
+  });
+
+  it('onFailed tolerates a missing job (connection-level failures)', () => {
+    const processor = new WebhookDeliveryProcessor(configWith({}));
+    expect(() =>
+      processor.onFailed(undefined, new Error('connection lost')),
+    ).not.toThrow();
   });
 });

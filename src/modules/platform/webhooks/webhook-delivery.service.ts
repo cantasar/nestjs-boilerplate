@@ -3,7 +3,10 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Queue } from 'bullmq';
 import { QUEUE_NAMES } from '../queue/constants/queue.constants';
-import { WEBHOOK_DELIVERY_CHUNK_SIZE } from './constants/webhook.constants';
+import {
+  WEBHOOK_DELIVERY_CHUNK_SIZE,
+  WEBHOOK_RESERVED_META_KEYS,
+} from './constants/webhook.constants';
 import type { WebhookEndpoint } from './interfaces/webhook-endpoint.interface';
 import {
   WEBHOOK_DELIVERY_JOB,
@@ -47,6 +50,15 @@ export class WebhookDeliveryService {
       return;
     }
     if (items.length === 0) return;
+    // `meta` is spread into the envelope next to the bookkeeping fields —
+    // shadowing them would silently corrupt the receiver contract.
+    for (const reserved of WEBHOOK_RESERVED_META_KEYS) {
+      if (meta && reserved in meta) {
+        throw new Error(
+          `meta.${reserved} shadows an envelope field — rename it`,
+        );
+      }
+    }
 
     const chunks = this.chunk(items, chunkSize);
     for (const [chunkIndex, chunkItems] of chunks.entries()) {
@@ -63,10 +75,16 @@ export class WebhookDeliveryService {
     );
   }
 
-  private chunk(items: unknown[], size: number): unknown[][] {
+  private chunk(
+    items: unknown[], // boundary: validated — caller-owned payload passthrough
+    size: number,
+  ): unknown[][] {
+    // size <= 0 would be an infinite loop (i += 0); NaN would emit one empty
+    // chunk. Clamp to a sane positive integer instead.
+    const step = Math.max(1, Math.floor(Number.isFinite(size) ? size : 1));
     const out: unknown[][] = [];
-    for (let i = 0; i < items.length; i += size) {
-      out.push(items.slice(i, i + size));
+    for (let i = 0; i < items.length; i += step) {
+      out.push(items.slice(i, i + step));
     }
     return out;
   }
