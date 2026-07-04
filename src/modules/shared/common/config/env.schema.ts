@@ -72,6 +72,10 @@ export const envSchema = z
     // surfaces media assets bound via the generic entity-ref ('bug_report', id)
     // through the ASSET_PORT. Default 'false' → no attachments are listed.
     BUG_REPORT_ATTACHMENTS_ENABLED: z.enum(['true', 'false']).default('false'),
+    // First-admin bootstrap seed — opt-in. When BOTH are set, an admin user is
+    // created once on startup (idempotent; see platform/seeds).
+    FIRST_ADMIN_EMAIL: z.string().email().optional(),
+    FIRST_ADMIN_PASSWORD: z.string().min(8).optional(),
     // Sentry — opt-in, feature-flagged by SENTRY_DSN. When unset the SDK stays a
     // no-op (see src/instrument.ts). Sample rates are read raw in instrument.ts
     // (it runs before Zod); these defaults document/echo the same fallbacks.

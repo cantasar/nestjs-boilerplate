@@ -31,6 +31,7 @@ import { AdminModule } from './modules/admin/admin.module';
 import { AuthenticatedConsentModule } from './modules/user/consent/authenticated-consent.module';
 import { PublicLegalDocumentsModule } from './modules/user/legal-documents/public-legal-documents.module';
 import { HealthModule } from './modules/platform/health/health.module';
+import { SeedsModule } from './modules/platform/seeds/seeds.module';
 import { CountriesModule } from './modules/user/countries/countries.module';
 
 // Dedicated throttler ioredis connection, created in the factory and held here
@@ -99,6 +100,8 @@ let throttlerRedis: Redis | undefined;
     PublicLegalDocumentsModule,
     HealthModule,
     CountriesModule,
+    // Env-gated bootstrap seeds (first admin etc.) — no-op unless configured.
+    SeedsModule,
   ],
   providers: [
     {
