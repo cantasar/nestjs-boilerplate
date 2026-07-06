@@ -15,6 +15,9 @@ export const envSchema = z
     JWT_SECRET: z.string().min(1).default('secret'),
     JWT_EXPIRATION: z.string().default('15m'),
     JWT_REFRESH_EXPIRATION: z.string().default('7d'),
+    // Server-to-server API key (ApiKeyGuard). Opt-in: when unset the guard
+    // fail-closes so no `@ApiKeyAuth()` route can be reached.
+    API_KEY: z.string().optional(),
     REDIS_URL: z.string().default('redis://localhost:6379'),
     REDIS_TTL: z.coerce.number().int().positive().default(180),
     QUEUE_PREFIX: z.string().optional(),
@@ -72,6 +75,10 @@ export const envSchema = z
     // surfaces media assets bound via the generic entity-ref ('bug_report', id)
     // through the ASSET_PORT. Default 'false' → no attachments are listed.
     BUG_REPORT_ATTACHMENTS_ENABLED: z.enum(['true', 'false']).default('false'),
+    // First-admin bootstrap seed — opt-in. When BOTH are set, an admin user is
+    // created once on startup (idempotent; see platform/seeds).
+    FIRST_ADMIN_EMAIL: z.string().email().optional(),
+    FIRST_ADMIN_PASSWORD: z.string().min(8).optional(),
     // Sentry — opt-in, feature-flagged by SENTRY_DSN. When unset the SDK stays a
     // no-op (see src/instrument.ts). Sample rates are read raw in instrument.ts
     // (it runs before Zod); these defaults document/echo the same fallbacks.
@@ -87,6 +94,36 @@ export const envSchema = z
   })
   .catchall(z.unknown())
   .superRefine((env, ctx) => {
+    // The dev-friendly JWT_SECRET default must never reach production: signed
+    // tokens would be forgeable by anyone. Require a real, >=32-char secret.
+    if (
+      env.NODE_ENV === 'production' &&
+      (env.JWT_SECRET === 'secret' || env.JWT_SECRET.length < 32)
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['JWT_SECRET'],
+        message:
+          'JWT_SECRET must be a non-default value of at least 32 characters when NODE_ENV is production',
+      });
+    }
+    // First-admin seed is opt-in: both vars are required together.
+    if (env.FIRST_ADMIN_EMAIL && !env.FIRST_ADMIN_PASSWORD) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['FIRST_ADMIN_PASSWORD'],
+        message:
+          'FIRST_ADMIN_PASSWORD is required when FIRST_ADMIN_EMAIL is set',
+      });
+    }
+    if (env.FIRST_ADMIN_PASSWORD && !env.FIRST_ADMIN_EMAIL) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['FIRST_ADMIN_EMAIL'],
+        message:
+          'FIRST_ADMIN_EMAIL is required when FIRST_ADMIN_PASSWORD is set',
+      });
+    }
     // GCS is opt-in: enabling it (GCS_BUCKET set) requires a project id.
     if (env.GCS_BUCKET && !env.GCP_PROJECT_ID) {
       ctx.addIssue({

@@ -34,6 +34,7 @@ import type {
   EmailLoginSession,
   PhoneSession,
 } from './interfaces/auth-session.types';
+import type { JwtPayload } from './interfaces/jwt-payload.interface';
 
 interface SafeUser {
   id: number;
@@ -61,11 +62,6 @@ interface OtpSession {
   sessionToken: string;
   expiresIn: number;
   otp?: string;
-}
-
-interface JwtPayload {
-  sub: number;
-  email: string | null;
 }
 
 interface RegisterInput {
@@ -211,8 +207,11 @@ export class AuthService {
     if (!user) return;
     const code = generateOtpCode();
     const key = this.getResetPasswordKey(email);
-    const ttl = this.configService.getOrThrow<number>('REDIS_TTL');
-    await this.redisService.setWithExpirySeconds(key, code, ttl);
+    await this.redisService.setWithExpirySeconds(
+      key,
+      code,
+      AUTH_CONSTANTS.PASSWORD_RESET_CODE_TTL_SECONDS,
+    );
     try {
       await this.mailQueue.enqueue({
         template: 'password-reset',
@@ -263,13 +262,11 @@ export class AuthService {
   private async registerResetFailure(key: string): Promise<void> {
     // void-ok
     const attemptsKey = AUTH_REDIS_KEYS.attempts(key);
-    const attempts = await this.redisService.incr(attemptsKey);
-    if (attempts === 1) {
-      await this.redisService.expire(
-        attemptsKey,
-        this.configService.getOrThrow<number>('REDIS_TTL'),
-      );
-    }
+    // Atomic INCR+EXPIRE — same lifetime as the code it guards.
+    const attempts = await this.redisService.incrWithTtlSeconds(
+      attemptsKey,
+      AUTH_CONSTANTS.PASSWORD_RESET_CODE_TTL_SECONDS,
+    );
     const maxAttempts = this.getConfigNumber(
       AUTH_CONFIG_KEYS.OTP_MAX_ATTEMPTS,
       AUTH_OTP_DEFAULTS.OTP_MAX_ATTEMPTS,
@@ -285,8 +282,13 @@ export class AuthService {
       const payload = this.jwtService.verify<JwtPayload>(refreshToken, {
         secret: this.configService.getOrThrow<string>('JWT_SECRET'),
       });
+      // Only a token minted as a refresh token may be rotated — an access
+      // token (same secret) must never work here.
+      if (payload.tokenType !== 'refresh')
+        throw new UnauthorizedException('Invalid token type');
       const user = await this.userRepository.findById(payload.sub);
       if (!user) throw new UnauthorizedException('User not found');
+      if (!user.isActive) throw new UnauthorizedException('User is not active');
       if (!user.refreshToken)
         throw new UnauthorizedException('Invalid refresh token');
       const isTokenValid = await bcrypt.compare(
@@ -656,11 +658,11 @@ export class AuthService {
     // void-ok
     if (this.constantTimeEqual(submittedOtp, expectedOtp)) return;
     const attemptsKey = AUTH_REDIS_KEYS.attempts(sessionKey);
-    const attempts = await this.redisService.incr(attemptsKey);
-    if (attempts === 1) {
-      // Bound the counter so it can never outlive the session it guards.
-      await this.redisService.expire(attemptsKey, this.maxSessionTtlSeconds());
-    }
+    // Atomic INCR+EXPIRE, bounded so it can never outlive the session it guards.
+    const attempts = await this.redisService.incrWithTtlSeconds(
+      attemptsKey,
+      this.maxSessionTtlSeconds(),
+    );
     const maxAttempts = this.getConfigNumber(
       AUTH_CONFIG_KEYS.OTP_MAX_ATTEMPTS,
       AUTH_OTP_DEFAULTS.OTP_MAX_ATTEMPTS,
@@ -724,8 +726,10 @@ export class AuthService {
     windowSeconds: number,
   ): Promise<void> {
     // void-ok
-    const count = await this.redisService.incr(key);
-    if (count === 1) await this.redisService.expire(key, windowSeconds);
+    const count = await this.redisService.incrWithTtlSeconds(
+      key,
+      windowSeconds,
+    );
     if (count > max)
       throw new BadRequestException(
         'Too many requests. Please try again later.',
@@ -736,10 +740,27 @@ export class AuthService {
     userId: number,
     email: string | null,
   ): Promise<{ accessToken: string; refreshToken: string }> {
-    const payload = { sub: userId, email };
+    // `tokenType` discriminates the two tokens (same signing secret) so each
+    // is only accepted by its own consumer (JwtStrategy vs. refresh()).
+    const accessPayload: JwtPayload = {
+      sub: userId,
+      email,
+      tokenType: 'access',
+    };
+    const refreshPayload: JwtPayload = {
+      sub: userId,
+      email,
+      tokenType: 'refresh',
+    };
     const [accessToken, refreshToken] = await Promise.all([
-      this.jwtService.signAsync(payload, this.getAccessTokenSignOptions()),
-      this.jwtService.signAsync(payload, this.getRefreshTokenSignOptions()),
+      this.jwtService.signAsync(
+        accessPayload,
+        this.getAccessTokenSignOptions(),
+      ),
+      this.jwtService.signAsync(
+        refreshPayload,
+        this.getRefreshTokenSignOptions(),
+      ),
     ]);
     return { accessToken, refreshToken };
   }
@@ -765,13 +786,10 @@ export class AuthService {
   private async ensureForgotPasswordRateLimit(email: string): Promise<void> {
     // void-ok
     const limitKey = `limit:forgot:${email}`;
-    const requestCount = await this.redisService.incr(limitKey);
-    if (requestCount === 1) {
-      await this.redisService.expire(
-        limitKey,
-        AUTH_CONSTANTS.FORGOT_PASSWORD_WINDOW_SECONDS,
-      );
-    }
+    const requestCount = await this.redisService.incrWithTtlSeconds(
+      limitKey,
+      AUTH_CONSTANTS.FORGOT_PASSWORD_WINDOW_SECONDS,
+    );
     if (requestCount > AUTH_CONSTANTS.FORGOT_PASSWORD_REQUESTS_LIMIT) {
       throw new BadRequestException(
         'Too many requests. Please try again later.',

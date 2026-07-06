@@ -62,8 +62,7 @@ describe('AuthService OTP/phone flows', () => {
     get: jest.fn((_key: string): string | undefined => undefined),
   };
   const mockRedisService = {
-    incr: jest.fn().mockResolvedValue(1),
-    expire: jest.fn(),
+    incrWithTtlSeconds: jest.fn().mockResolvedValue(1),
     setWithExpirySeconds: jest.fn(),
     get: jest.fn(),
     del: jest.fn().mockResolvedValue(1),
@@ -76,7 +75,7 @@ describe('AuthService OTP/phone flows', () => {
     (bcrypt.hash as jest.Mock).mockResolvedValue('hashed');
     (bcrypt.compare as jest.Mock).mockResolvedValue(true);
     mockJwtService.signAsync.mockResolvedValue('token');
-    mockRedisService.incr.mockResolvedValue(1);
+    mockRedisService.incrWithTtlSeconds.mockResolvedValue(1);
     mockRedisService.del.mockResolvedValue(1);
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -151,7 +150,7 @@ describe('AuthService OTP/phone flows', () => {
           otp: '123456',
         }),
       );
-      mockRedisService.incr.mockResolvedValue(5); // hits default max
+      mockRedisService.incrWithTtlSeconds.mockResolvedValue(5); // hits default max
       await expect(service.verifyEmail('session', '000000')).rejects.toThrow(
         /Too many failed attempts/,
       );

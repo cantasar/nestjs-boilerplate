@@ -101,6 +101,10 @@ export class HttpExceptionFilter implements ExceptionFilter {
         return CommonErrorCode.NOT_FOUND;
       case HttpStatus.CONFLICT:
         return CommonErrorCode.CONFLICT;
+      case HttpStatus.TOO_MANY_REQUESTS:
+        // ThrottlerGuard rejections must not masquerade as internal errors —
+        // clients back off on a rate-limit code, they page on-call for a 500.
+        return CommonErrorCode.RATE_LIMITED;
       default:
         return CommonErrorCode.INTERNAL_ERROR;
     }
