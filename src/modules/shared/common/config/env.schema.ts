@@ -15,6 +15,9 @@ export const envSchema = z
     JWT_SECRET: z.string().min(1).default('secret'),
     JWT_EXPIRATION: z.string().default('15m'),
     JWT_REFRESH_EXPIRATION: z.string().default('7d'),
+    // Server-to-server API key (ApiKeyGuard). Opt-in: when unset the guard
+    // fail-closes so no `@ApiKeyAuth()` route can be reached.
+    API_KEY: z.string().optional(),
     REDIS_URL: z.string().default('redis://localhost:6379'),
     REDIS_TTL: z.coerce.number().int().positive().default(180),
     QUEUE_PREFIX: z.string().optional(),
