@@ -11,13 +11,12 @@ import {
   ApiBearerAuth,
   ApiBody,
   ApiConflictResponse,
-  ApiCreatedResponse,
   ApiNoContentResponse,
-  ApiOkResponse,
   ApiOperation,
   ApiTags,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
+import { ApiOkEnvelope } from '../../shared/common/decorators/api-common-responses.decorator';
 import { AuthService } from './auth.service';
 import { Public } from '../../shared/common/decorators/public.decorator';
 import { GetUser } from '../../shared/common/decorators/get-user.decorator';
@@ -50,9 +49,9 @@ export class AuthController {
   @Post('register')
   @ApiOperation({ summary: 'Register a new user account' })
   @ApiBody({ type: RegisterDto })
-  @ApiCreatedResponse({
+  @ApiOkEnvelope(AuthResponseDto, {
+    status: 201,
     description: 'Registration successful',
-    type: AuthResponseDto,
   })
   @ApiConflictResponse({ description: 'Email already in use' })
   register(@Body() dto: RegisterDto): Promise<AuthResponseDto> {
@@ -65,9 +64,8 @@ export class AuthController {
     summary: 'Verify email OTP after register and complete login',
   })
   @ApiBody({ type: OtpVerifyDto })
-  @ApiOkResponse({
+  @ApiOkEnvelope(AuthResponseDto, {
     description: 'Email verified, login successful',
-    type: AuthResponseDto,
   })
   @ApiBadRequestResponse({ description: 'Invalid or expired OTP/session' })
   verifyEmail(@Body() dto: OtpVerifyDto): Promise<AuthResponseDto> {
@@ -78,9 +76,8 @@ export class AuthController {
   @Post('register/verify-email/resend')
   @ApiOperation({ summary: 'Resend the email verification OTP' })
   @ApiBody({ type: ResendEmailVerificationDto })
-  @ApiOkResponse({
+  @ApiOkEnvelope(OtpSessionResponseDto, {
     description: 'Verification code resent if the account needs it',
-    type: OtpSessionResponseDto,
   })
   async resendEmailVerification(
     @Body() dto: ResendEmailVerificationDto,
@@ -94,9 +91,8 @@ export class AuthController {
   @Post('login')
   @ApiOperation({ summary: 'Authenticate with email and password' })
   @ApiBody({ type: LoginDto })
-  @ApiOkResponse({
+  @ApiOkEnvelope(AuthResponseDto, {
     description: 'Login successful',
-    type: AuthResponseDto,
   })
   @ApiUnauthorizedResponse({ description: 'Invalid credentials' })
   login(@Body() dto: LoginDto): Promise<AuthResponseDto> {
@@ -107,9 +103,8 @@ export class AuthController {
   @Post('login/email')
   @ApiOperation({ summary: 'Send a login OTP to the account email' })
   @ApiBody({ type: EmailLoginDto })
-  @ApiOkResponse({
+  @ApiOkEnvelope(OtpSessionResponseDto, {
     description: 'Login OTP session created',
-    type: OtpSessionResponseDto,
   })
   @ApiUnauthorizedResponse({ description: 'Invalid credentials' })
   loginEmail(@Body() dto: EmailLoginDto): Promise<OtpSessionResponseDto> {
@@ -120,7 +115,7 @@ export class AuthController {
   @Post('login/email/verify')
   @ApiOperation({ summary: 'Verify email OTP and complete login' })
   @ApiBody({ type: OtpVerifyDto })
-  @ApiOkResponse({ description: 'Login successful', type: AuthResponseDto })
+  @ApiOkEnvelope(AuthResponseDto, { description: 'Login successful' })
   @ApiBadRequestResponse({ description: 'Invalid or expired OTP/session' })
   verifyEmailLogin(@Body() dto: OtpVerifyDto): Promise<AuthResponseDto> {
     return this.authService.verifyEmailLogin(dto.sessionToken, dto.otp);
@@ -130,9 +125,9 @@ export class AuthController {
   @Post('register/phone')
   @ApiOperation({ summary: 'Send an OTP for phone registration' })
   @ApiBody({ type: PhoneRegisterDto })
-  @ApiCreatedResponse({
+  @ApiOkEnvelope(OtpSessionResponseDto, {
+    status: 201,
     description: 'Phone OTP session created',
-    type: OtpSessionResponseDto,
   })
   @ApiConflictResponse({ description: 'Phone already in use' })
   registerPhone(@Body() dto: PhoneRegisterDto): Promise<OtpSessionResponseDto> {
@@ -143,9 +138,8 @@ export class AuthController {
   @Post('register/phone/verify')
   @ApiOperation({ summary: 'Verify phone OTP and complete registration' })
   @ApiBody({ type: OtpVerifyDto })
-  @ApiOkResponse({
+  @ApiOkEnvelope(AuthResponseDto, {
     description: 'Registration successful',
-    type: AuthResponseDto,
   })
   @ApiBadRequestResponse({ description: 'Invalid or expired OTP/session' })
   verifyPhoneRegister(@Body() dto: OtpVerifyDto): Promise<AuthResponseDto> {
@@ -156,9 +150,8 @@ export class AuthController {
   @Post('login/phone')
   @ApiOperation({ summary: 'Send a login OTP to the account phone' })
   @ApiBody({ type: PhoneLoginDto })
-  @ApiOkResponse({
+  @ApiOkEnvelope(OtpSessionResponseDto, {
     description: 'Login OTP session created',
-    type: OtpSessionResponseDto,
   })
   @ApiUnauthorizedResponse({ description: 'Invalid credentials' })
   loginPhone(@Body() dto: PhoneLoginDto): Promise<OtpSessionResponseDto> {
@@ -169,7 +162,7 @@ export class AuthController {
   @Post('login/phone/verify')
   @ApiOperation({ summary: 'Verify phone OTP and complete login' })
   @ApiBody({ type: OtpVerifyDto })
-  @ApiOkResponse({ description: 'Login successful', type: AuthResponseDto })
+  @ApiOkEnvelope(AuthResponseDto, { description: 'Login successful' })
   @ApiBadRequestResponse({ description: 'Invalid or expired OTP/session' })
   verifyPhoneLogin(@Body() dto: OtpVerifyDto): Promise<AuthResponseDto> {
     return this.authService.verifyPhoneLogin(dto.sessionToken, dto.otp);
@@ -179,7 +172,7 @@ export class AuthController {
   @Post('google')
   @ApiOperation({ summary: 'Sign in with Google ID token' })
   @ApiBody({ type: OAuthTokenDto })
-  @ApiOkResponse({ description: 'Login successful', type: AuthResponseDto })
+  @ApiOkEnvelope(AuthResponseDto, { description: 'Login successful' })
   @ApiUnauthorizedResponse({ description: 'Invalid token' })
   async googleLogin(@Body() dto: OAuthTokenDto): Promise<AuthResponseDto> {
     return this.authService.googleLogin(dto.idToken);
@@ -189,7 +182,7 @@ export class AuthController {
   @Post('apple')
   @ApiOperation({ summary: 'Sign in with Apple ID token' })
   @ApiBody({ type: AppleAuthDto })
-  @ApiOkResponse({ description: 'Login successful', type: AuthResponseDto })
+  @ApiOkEnvelope(AuthResponseDto, { description: 'Login successful' })
   @ApiUnauthorizedResponse({ description: 'Invalid token' })
   async appleLogin(@Body() dto: AppleAuthDto): Promise<AuthResponseDto> {
     return this.authService.appleLogin(
@@ -203,9 +196,8 @@ export class AuthController {
   @Post('forgot-password')
   @ApiOperation({ summary: 'Send reset code to email if account exists' })
   @ApiBody({ type: ForgotPasswordDto })
-  @ApiOkResponse({
+  @ApiOkEnvelope(ForgotPasswordResponseDto, {
     description: 'Code sent if email exists',
-    type: ForgotPasswordResponseDto,
   })
   @ApiBadRequestResponse({ description: 'Too many requests' })
   async forgotPassword(
@@ -221,9 +213,8 @@ export class AuthController {
   @Post('reset-password')
   @ApiOperation({ summary: 'Reset password with verification code' })
   @ApiBody({ type: ResetPasswordDto })
-  @ApiOkResponse({
+  @ApiOkEnvelope(ResetPasswordResponseDto, {
     description: 'Password updated',
-    type: ResetPasswordResponseDto,
   })
   @ApiBadRequestResponse({ description: 'Invalid or expired code' })
   async resetPassword(
@@ -237,9 +228,8 @@ export class AuthController {
   @Post('refresh')
   @ApiOperation({ summary: 'Refresh access token using refresh token' })
   @ApiBody({ type: RefreshTokenDto })
-  @ApiOkResponse({
+  @ApiOkEnvelope(RefreshResponseDto, {
     description: 'Token refreshed',
-    type: RefreshResponseDto,
   })
   @ApiUnauthorizedResponse({ description: 'Invalid refresh token' })
   refresh(@Body() dto: RefreshTokenDto): Promise<RefreshResponseDto> {
@@ -250,9 +240,8 @@ export class AuthController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Change the current user password' })
   @ApiBody({ type: ChangePasswordDto })
-  @ApiOkResponse({
+  @ApiOkEnvelope(ChangePasswordResponseDto, {
     description: 'Password changed',
-    type: ChangePasswordResponseDto,
   })
   @ApiBadRequestResponse({ description: 'Current password is incorrect' })
   @ApiUnauthorizedResponse({ description: 'Authentication required' })

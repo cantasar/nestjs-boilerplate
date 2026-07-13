@@ -16,9 +16,7 @@ import {
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
-  ApiCreatedResponse,
   ApiNoContentResponse,
-  ApiOkResponse,
   ApiOperation,
   ApiTags,
 } from '@nestjs/swagger';
@@ -26,6 +24,7 @@ import { ProdAdminGuard } from '../../shared/common/guards/prod-admin.guard';
 import { GetUser } from '../../shared/common/decorators/get-user.decorator';
 import {
   ApiErrorCodes,
+  ApiOkEnvelope,
   ApiPaginatedEnvelope,
   ApiResourceErrors,
 } from '../../shared/common/decorators/api-common-responses.decorator';
@@ -58,7 +57,7 @@ export class BugReportsController {
   @ApiOperation({
     summary: 'Create a bug report (optionally linked to a generic entity-ref).',
   })
-  @ApiCreatedResponse({ type: BugReportDto })
+  @ApiOkEnvelope(BugReportDto, { status: 201 })
   // CREATE has no prior state, so no loadBefore — entityId defaults to result.id.
   @Audit({ entity: AuditEntity.BUG_REPORT, action: AuditAction.CREATE })
   create(@GetUser('id') reporterId: number, @Body() dto: CreateBugReportDto) {
@@ -88,7 +87,7 @@ export class BugReportsController {
     summary:
       'Get a bug report by id. Soft-deleted records return 404 unless includeInactive=true.',
   })
-  @ApiOkResponse({ type: BugReportDto })
+  @ApiOkEnvelope(BugReportDto)
   @ApiErrorCodes(BugReportErrorCode.NOT_FOUND)
   findOne(
     @Param('id', new ParseUUIDPipe()) id: string,
@@ -102,7 +101,7 @@ export class BugReportsController {
   @ApiOperation({
     summary: 'Update a bug report (status/severity/assignee/notes).',
   })
-  @ApiOkResponse({ type: BugReportDto })
+  @ApiOkEnvelope(BugReportDto)
   @ApiErrorCodes(BugReportErrorCode.NOT_FOUND)
   @Audit({
     entity: AuditEntity.BUG_REPORT,

@@ -8,16 +8,12 @@ import {
   Ip,
   Post,
 } from '@nestjs/common';
-import {
-  ApiBearerAuth,
-  ApiOkResponse,
-  ApiOperation,
-  ApiTags,
-} from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { GetUser } from '../../shared/common/decorators/get-user.decorator';
 import {
   ApiAuthErrors,
   ApiErrorCodes,
+  ApiOkEnvelope,
 } from '../../shared/common/decorators/api-common-responses.decorator';
 import { LegalDocumentErrorCode } from '../../shared/common/errors/error-codes';
 import { ConsentService } from './consent.service';
@@ -39,7 +35,7 @@ export class ConsentController {
   @Post('accept')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Accept a legal-document version' })
-  @ApiOkResponse({ type: ConsentResponseDto })
+  @ApiOkEnvelope(ConsentResponseDto)
   @ApiAuthErrors()
   @ApiErrorCodes(LegalDocumentErrorCode.NOT_FOUND_BY_SLUG)
   async accept(
@@ -60,7 +56,7 @@ export class ConsentController {
   @Post('revoke')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Revoke consent for a legal-document version' })
-  @ApiOkResponse({ type: ConsentResponseDto })
+  @ApiOkEnvelope(ConsentResponseDto)
   @ApiAuthErrors()
   @ApiErrorCodes(LegalDocumentErrorCode.NOT_FOUND_BY_SLUG)
   async revoke(
@@ -80,7 +76,7 @@ export class ConsentController {
 
   @Get()
   @ApiOperation({ summary: 'List the authenticated user consent history' })
-  @ApiOkResponse({ type: [ConsentResponseDto] })
+  @ApiOkEnvelope(ConsentResponseDto, { isArray: true })
   @ApiAuthErrors()
   async list(@GetUser('id') userId: number): Promise<ConsentResponseDto[]> {
     const rows = await this.consentService.listForUser(userId);

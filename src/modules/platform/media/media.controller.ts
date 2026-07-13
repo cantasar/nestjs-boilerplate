@@ -7,12 +7,7 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
-import {
-  ApiBearerAuth,
-  ApiOkResponse,
-  ApiOperation,
-  ApiTags,
-} from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { JwtGuard } from '../../shared/common/guards/jwt.guard';
 import { ProdAdminGuard } from '../../shared/common/guards/prod-admin.guard';
 import { GetUser } from '../../shared/common/decorators/get-user.decorator';
@@ -70,7 +65,7 @@ export class MediaController {
   @Get('by-entity')
   @UseGuards(ProdAdminGuard)
   @ApiOperation({ summary: 'List assets bound to a generic entity reference' })
-  @ApiOkResponse({ type: [MediaAssetResponseDto] })
+  @ApiOkEnvelope(MediaAssetResponseDto, { isArray: true })
   listByEntity(
     @Query() query: ListByEntityQueryDto,
   ): Promise<MediaAssetView[]> {

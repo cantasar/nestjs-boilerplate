@@ -45,11 +45,7 @@ export class TodoController {
 
   @Get()
   @ApiOperation({ summary: 'List todos for the authenticated user' })
-  @ApiResponse({
-    status: 200,
-    description: 'Todo list',
-    type: [TodoResponseDto],
-  })
+  @ApiOkEnvelope(TodoResponseDto, { isArray: true, description: 'Todo list' })
   findAll(@GetUser('id') userId: number): Promise<Todo[]> {
     return this.todoService.findAll(userId);
   }
@@ -78,11 +74,7 @@ export class TodoController {
 
   @Post()
   @ApiOperation({ summary: 'Create a todo' })
-  @ApiResponse({
-    status: 201,
-    description: 'Todo created',
-    type: TodoResponseDto,
-  })
+  @ApiOkEnvelope(TodoResponseDto, { status: 201, description: 'Todo created' })
   // Reference @Audit usage: a CREATE has no prior state, so no loadBefore — the
   // entityId is read from the returned row's `id` (the interceptor's default),
   // and the raw created Todo becomes the `after` snapshot.
@@ -96,11 +88,7 @@ export class TodoController {
 
   @Patch(':id')
   @ApiOperation({ summary: 'Update a todo' })
-  @ApiResponse({
-    status: 200,
-    description: 'Todo updated',
-    type: TodoResponseDto,
-  })
+  @ApiOkEnvelope(TodoResponseDto, { description: 'Todo updated' })
   @ApiResponse({ status: 404, description: 'Todo not found' })
   update(
     @Param('id', ParseIntPipe) id: number,

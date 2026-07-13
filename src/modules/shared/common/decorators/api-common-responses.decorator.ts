@@ -59,16 +59,36 @@ export function ApiResourceErrors() {
   );
 }
 
+// Primitive Nest/Swagger "types" (String/Number/Boolean) aren't classes with
+// their own schema — getSchemaPath/ApiExtraModels only work on real DTOs.
+const PRIMITIVE_SCHEMAS = new Map<unknown, { type: string }>([
+  [String, { type: 'string' }],
+  [Number, { type: 'number' }],
+  [Boolean, { type: 'boolean' }],
+]);
+
+function dataSchema(model: Type<unknown>, isArray: boolean | undefined) {
+  const primitive = PRIMITIVE_SCHEMAS.get(model);
+  const item = primitive ?? { $ref: getSchemaPath(model) };
+  return isArray ? { type: 'array', items: item } : item;
+}
+
 /**
  * Document a `2xx` that returns the success envelope wrapping a single DTO:
- * `{ success: true, data: <Dto> }`.
+ * `{ success: true, data: <Dto> }` — or, with `{ isArray: true }`, a bare
+ * (non-paginated) `<Dto>[]`. Use `ApiPaginatedEnvelope` for a paginated list.
  */
 export function ApiOkEnvelope<TModel extends Type<unknown>>(
   model: TModel,
-  options?: { readonly status?: number; readonly description?: string },
+  options?: {
+    readonly status?: number;
+    readonly description?: string;
+    readonly isArray?: boolean;
+  },
 ) {
+  const primitive = PRIMITIVE_SCHEMAS.has(model);
   return applyDecorators(
-    ApiExtraModels(model),
+    ...(primitive ? [] : [ApiExtraModels(model)]),
     ApiResponse({
       status: options?.status ?? 200,
       description: options?.description,
@@ -77,7 +97,7 @@ export function ApiOkEnvelope<TModel extends Type<unknown>>(
         required: ['success', 'data'],
         properties: {
           success: { type: 'boolean', example: true },
-          data: { $ref: getSchemaPath(model) },
+          data: dataSchema(model, options?.isArray),
         },
       },
     }),

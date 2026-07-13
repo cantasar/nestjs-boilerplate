@@ -1,8 +1,9 @@
 import { Controller, Get, Header, Inject, Param, Query } from '@nestjs/common';
-import { ApiOkResponse, ApiQuery, ApiTags } from '@nestjs/swagger';
+import { ApiQuery, ApiTags } from '@nestjs/swagger';
 import { Public } from '../../shared/common/decorators/public.decorator';
 import {
   ApiErrorCodes,
+  ApiOkEnvelope,
   ApiPublicErrors,
 } from '../../shared/common/decorators/api-common-responses.decorator';
 import { LegalDocumentErrorCode } from '../../shared/common/errors/error-codes';
@@ -31,7 +32,7 @@ export class LegalDocumentsController {
   @Get()
   @Header('Cache-Control', 'public, max-age=300')
   @ApiQuery({ name: 'type', required: false, enum: DocumentType })
-  @ApiOkResponse({ type: [LegalDocumentSummaryDto] })
+  @ApiOkEnvelope(LegalDocumentSummaryDto, { isArray: true })
   @ApiPublicErrors()
   async list(
     @Query() query: LegalDocumentListQueryDto,
@@ -48,7 +49,7 @@ export class LegalDocumentsController {
 
   @Get(':slug')
   @Header('Cache-Control', 'public, max-age=300')
-  @ApiOkResponse({ type: LegalDocumentDetailDto })
+  @ApiOkEnvelope(LegalDocumentDetailDto)
   @ApiPublicErrors()
   @ApiErrorCodes(LegalDocumentErrorCode.NOT_FOUND_BY_SLUG)
   async findOne(@Param('slug') slug: string): Promise<LegalDocumentDetailDto> {
