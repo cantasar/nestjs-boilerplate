@@ -10,15 +10,15 @@
 #                       └── serverless_NEG → the api service
 #
 # Cert uses Certificate Manager DNS authorization — issuance is fully
-# pre-wired here; the user only has to publish ONE CNAME on your DNS provider
-# (`_acme-challenge.<domain>` → <auth_value>) before the cert
-# transitions to ACTIVE. GCE legacy stays live throughout because the
-# The A record `<domain> → LB IP` is managed in your DNS provider.
+# pre-wired here; you only have to publish ONE CNAME with your DNS provider
+# (`_acme-challenge.<domain>` → <auth_value>) before the cert transitions to
+# ACTIVE. The A record `<domain> → LB IP` is also managed with your DNS
+# provider — see the `lb_ipv4` output below.
 ######################################################################
 
 ######################################################################
-# Anycast IPv4 — printed as output so user can later swap your DNS provider A
-# record to it during DNS cutover.
+# Anycast IPv4 — printed as output so you can point your domain's A record
+# at it during DNS cutover.
 ######################################################################
 
 resource "google_compute_global_address" "lb_ipv4" {
@@ -87,7 +87,8 @@ resource "google_compute_url_map" "api" {
 
 ######################################################################
 # Certificate Manager — DNS authorization + managed cert.
-# Output dns_resource_record drives the your DNS provider CNAME the user adds.
+# The dns_resource_record output gives you the CNAME to add with your DNS
+# provider.
 ######################################################################
 
 resource "google_certificate_manager_dns_authorization" "api" {

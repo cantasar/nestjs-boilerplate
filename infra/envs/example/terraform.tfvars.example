@@ -32,4 +32,8 @@ enable_migrate_job  = false
 enable_lb           = false
 
 # api_domain      = "api.example.com"
-# bootstrap_image = ""   # set to a real image URI before first apply
+
+# Required before the first apply (manage_api_template=true owns the revision
+# template from the start — Cloud Run rejects an empty image). A public
+# placeholder is fine; CI overwrites it on the first real deploy regardless.
+bootstrap_image = "us-docker.pkg.dev/cloudrun/container/hello"

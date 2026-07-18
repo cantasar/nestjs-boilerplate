@@ -4,11 +4,11 @@ Project-agnostic Terraform for Cloud Run + optional Cloud SQL + optional Memorys
 Manager + VPC/PSA + serverless LB. The modules under `modules/` carry **no project-specific
 values** — everything specific to your project lives in your own `envs/<env>/`.
 
-This ports the same infra used in production for a sibling app (cilt365), generalized: the
-Cloud Build trigger module from that setup does **not** get carried over — this repo already has
-its own CI/CD (`.github/workflows/deploy-cloud-run.yml`). Terraform here manages the runtime
-infra (VPC, DB, cache, secrets, IAM, the Cloud Run service definition); the GitHub Actions
-workflow keeps shipping images.
+This ports the same infra used in production for a sibling app, generalized: that setup's Cloud
+Build trigger module does **not** get carried over — this repo already has its own CI/CD
+(`.github/workflows/deploy-cloud-run.yml`). Terraform here manages the runtime infra (VPC, DB,
+cache, secrets, IAM, the Cloud Run service definition); the GitHub Actions workflow keeps shipping
+images.
 
 ## Layout
 
@@ -86,7 +86,12 @@ gcloud storage buckets create gs://<your-project>-tfstate --location=<region> \
 gcloud storage buckets update gs://<your-project>-tfstate --versioning
 ```
 Copy `envs/example/` to `envs/<env>/`, then copy `terraform.tfvars.example` to `terraform.tfvars`
-and fill it in — start with the data-plane toggles (above), they shape everything else.
+and fill it in — start with the data-plane toggles (above), they shape everything else. Also set
+`bootstrap_image` to a real image URI (a public placeholder like
+`us-docker.pkg.dev/cloudrun/container/hello` is fine for this first apply) — with
+`manage_api_template = true` (the example's default), Terraform owns the revision template from
+the start, and Cloud Run rejects an empty `image`. `ignore_changes` on the image field means CI
+overwrites it on the very next real deploy (step 4) regardless of what's here now.
 
 ### 2 — init + apply
 ```bash
@@ -134,10 +139,12 @@ If you've been deploying manually or via CI and want Terraform to take over with
    apply with drift unresolved.
 4. `terraform apply` — creates only the genuinely new resources (additive, doesn't touch the
    running service).
-5. **Cutover**: set `bootstrap_image` to the current live image URI, flip
-   `manage_api_template = true`, `terraform apply` → in-place new revision (not destroy+create —
-   confirmed by the `moved` block in `modules/cloud_run_service/main.tf`). Roll traffic
-   canary → validate → 100%. Rollback: `gcloud run services update-traffic ... --to-revisions=<prev>=100`.
+5. **Cutover**: set `bootstrap_image` to the current live image URI. **First**, add the `moved`
+   block back to `modules/cloud_run_service/main.tf` (the exact snippet is commented right above
+   the `shell` resource) — without it, flipping the toggle DESTROYS `shell[0]` and CREATES
+   `managed[0]` instead of an in-place update (downtime). Then flip `manage_api_template = true`
+   and `terraform apply` → in-place new revision. Roll traffic canary → validate → 100%. Rollback:
+   `gcloud run services update-traffic ... --to-revisions=<prev>=100`.
 
 ⚠️ Before this last step, check whether the live service uses a Serverless VPC Access connector
 rather than Direct VPC Egress (`gcloud run services describe ... --format=yaml` and look for

@@ -15,8 +15,8 @@ resource "google_service_account" "runtime" {
 resource "google_service_account" "cicd" {
   project      = var.project_id
   account_id   = var.cicd_sa_account_id
-  display_name = "${var.service_label} CI/CD (Cloud Build)"
-  description  = "Cloud Build deploy SA. Pushes images, deploys revisions, and impersonates the runtime SA — no broad project-level roles."
+  display_name = "${var.service_label} CI/CD"
+  description  = "CI deploy SA (e.g. GitHub Actions). Pushes images, deploys revisions, and impersonates the runtime SA — no broad project-level roles."
 }
 
 ######################################################################
@@ -64,18 +64,20 @@ resource "google_storage_bucket_iam_member" "runtime_buckets" {
 #
 # - run.developer            : deploy + manage Cloud Run services/jobs
 # - artifactregistry.writer  : push images to AR
-# - cloudbuild.builds.editor : kick off / manage its own builds
-# - logging.logWriter        : Cloud Build step logs
-# - storage.objectViewer     : read source archives in the build bucket
+# - logging.logWriter        : CI job step logs
+#
+# No Cloud Build roles — this template's CI ships images via a plain
+# `docker build`/`docker push` + `gcloud run deploy` (e.g. GitHub Actions),
+# not Cloud Build. Add `roles/cloudbuild.builds.editor` +
+# `roles/storage.objectViewer` (build-bucket source archives) back only if
+# you actually wire up Cloud Build triggers.
 ######################################################################
 
 locals {
   cicd_project_roles = [
     "roles/run.developer",
     "roles/artifactregistry.writer",
-    "roles/cloudbuild.builds.editor",
     "roles/logging.logWriter",
-    "roles/storage.objectViewer",
   ]
 }
 
@@ -101,8 +103,8 @@ resource "google_service_account_iam_member" "cicd_impersonates_runtime" {
 
 ######################################################################
 # CI/CD SA — per-service run.invoker.
-# Lets the Cloud Build pipeline call the service (smoke tests, traffic
-# migration RPCs) without granting project-wide run.invoker.
+# Lets the CI pipeline call the service (smoke tests, traffic migration
+# RPCs) without granting project-wide run.invoker.
 ######################################################################
 
 resource "google_cloud_run_v2_service_iam_member" "cicd_invoker" {

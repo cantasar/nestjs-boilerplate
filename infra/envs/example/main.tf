@@ -69,10 +69,12 @@ module "cloud_sql" {
   project_id = var.project_id
   region     = var.data_region
 
-  instance_name    = var.cloud_sql_instance_name
-  database_version = "POSTGRES_18"
-  tier             = var.cloud_sql_tier
-  vpc_self_link    = one(module.network[*].vpc_self_link)
+  instance_name = var.cloud_sql_instance_name
+  # database_version not overridden — module default (POSTGRES_17) is the
+  # safer, more broadly-available choice for a fresh instance. Override only
+  # if you know your region/edition needs otherwise.
+  tier          = var.cloud_sql_tier
+  vpc_self_link = one(module.network[*].vpc_self_link)
 }
 
 module "memorystore" {

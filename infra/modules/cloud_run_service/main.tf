@@ -4,8 +4,8 @@
 # Two modes — gated by var.manage_template:
 #
 #   manage_template = false (adopt existing)
-#     Module is a thin import wrapper. Template is left to whatever
-#     Cloud Build last deployed; only the bare service shell is owned.
+#     Module is a thin import wrapper. Template is left to whatever CI
+#     last deployed; only the bare service shell is owned.
 #     Used while adopting a CI-deployed service.
 #
 #   manage_template = true (Terraform-owned)
@@ -15,8 +15,8 @@
 #
 # In both modes `image`, `command`, `client`, `client_version`,
 # `traffic`, and `annotations` from CI deploys are tolerated via
-# ignore_changes so Cloud Build can keep rolling new images without
-# fighting Terraform.
+# ignore_changes so CI can keep rolling new images without fighting
+# Terraform.
 ######################################################################
 
 locals {
@@ -30,18 +30,19 @@ locals {
 ######################################################################
 
 # Zero-downtime cutover: when manage_template flips false → true, the
-# service lives at `shell[0]` and config wants it at `managed[0]`. This
-# `moved` block migrates state instead of DESTROY+CREATE (which would
-# recreate the live service — downtime). Only valid to have present while
-# manage_template=true everywhere this module is instantiated (Terraform
-# rejects a `moved` block whose "from" address can still be produced by the
-# current config, which is the case whenever manage_template=false) — remove
-# it again if this module ever needs to go back to shell-mode for a fresh
-# adoption elsewhere.
-moved {
-  from = google_cloud_run_v2_service.shell[0]
-  to   = google_cloud_run_v2_service.managed[0]
-}
+# service lives at `shell[0]` and config wants it at `managed[0]`. A `moved`
+# block migrates state instead of DESTROY+CREATE (which would recreate the
+# live service — downtime) — but Terraform rejects a `moved` block whose
+# "from" address can still be produced by the current configuration, and
+# shell[0] IS still produced whenever manage_template=false (count=1). So
+# this block can only be ADDED in the actual cutover commit (alongside
+# flipping manage_template=true for good), not kept here permanently — add
+# it back then (see the root README's cutover step):
+#
+#   moved {
+#     from = google_cloud_run_v2_service.shell[0]
+#     to   = google_cloud_run_v2_service.managed[0]
+#   }
 
 resource "google_cloud_run_v2_service" "shell" {
   count = var.manage_template ? 0 : 1
@@ -226,8 +227,8 @@ resource "google_cloud_run_v2_service" "managed" {
 
   lifecycle {
     ignore_changes = [
-      # Cloud Build rolls new images on every push — Terraform must
-      # not fight CI on image SHA.
+      # CI rolls new images on every push — Terraform must not fight it
+      # on image SHA.
       template[0].containers[0].image,
       client,
       client_version,

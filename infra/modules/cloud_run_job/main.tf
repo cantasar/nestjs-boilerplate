@@ -1,13 +1,13 @@
 ######################################################################
 # the migrate job — Cloud Run v2 Job.
 #
-# Cloud Build's migrate-update step rewrites the image to the new
-# $SHORT_SHA tag before invoking the job; lifecycle ignores image,
-# client, and client_version so Terraform never drifts on CI deploys.
+# CI rewrites the image to the new commit-sha tag before invoking the job;
+# lifecycle ignores image, client, and client_version so Terraform never
+# drifts on CI deploys.
 #
-# Runs start-migrate.sh: wait_for_db.py → alembic upgrade head.
-# Direct VPC Egress + Cloud SQL volume — same connectivity as
-# the api service so the migration can talk to private Postgres.
+# Runs Drizzle migrations (`node dist/src/migrate.js`, see envs/example's
+# `command`). Direct VPC Egress + Cloud SQL volume (when enabled) — same
+# connectivity as the api service so the job can talk to private Postgres.
 ######################################################################
 
 locals {
@@ -116,7 +116,7 @@ resource "google_cloud_run_v2_job" "migrate" {
 
   lifecycle {
     ignore_changes = [
-      # Cloud Build's migrate-update step rewrites image per push.
+      # CI rewrites the image on every deploy.
       template[0].template[0].containers[0].image,
       client,
       client_version,

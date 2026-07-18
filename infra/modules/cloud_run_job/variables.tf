@@ -12,13 +12,13 @@ variable "job_name" {
 }
 
 variable "bootstrap_image" {
-  description = "Bootstrap image URI used to seed the Job. Cloud Build's migrate-update step rewrites this on every push; image is ignored by lifecycle so TF and CI don't fight."
+  description = "Bootstrap image URI used to seed the Job. CI rewrites this on every deploy; image is ignored by lifecycle so TF and CI don't fight."
   type        = string
 }
 
 variable "command" {
   type    = list(string)
-  default = ["/app/start-migrate.sh"]
+  default = ["node", "dist/src/migrate.js"]
 }
 
 variable "service_account" {
