@@ -1,0 +1,33 @@
+# Terraform state — kept in GCS backend, never local
+*.tfstate
+*.tfstate.*
+*.tfstate.backup
+
+# Provider plugins / module cache
+.terraform/
+.terraform.lock.hcl.bak
+
+# Crash logs
+crash.log
+crash.*.log
+
+# Plan output
+*.tfplan
+*.tfplan.*
+
+# tfvars may contain secrets — example file is committed
+*.tfvars
+*.tfvars.json
+!*.tfvars.example
+!*.tfvars.example.json
+
+# CLI override files
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# Editor
+.vscode/
+.idea/
+*.plan

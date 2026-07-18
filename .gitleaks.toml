@@ -8,4 +8,9 @@ description = "Templates and lockfiles"
 paths = [
   '''\.env\.example$''',
   '''pnpm-lock\.yaml$''',
+  # Terraform config only ever holds Secret Manager resource IDs (e.g.
+  # "app-jwt-secret") and public domain names — real values live in Secret
+  # Manager / gitignored terraform.tfvars, never in these files.
+  '''infra/.*\.tf$''',
+  '''infra/.*\.tfvars\.example$''',
 ]

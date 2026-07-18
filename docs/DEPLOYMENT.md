@@ -63,3 +63,7 @@ The repository includes a GitHub Actions workflow at `.github/workflows/` for bu
 4. **Deploy** — run the workflow manually (Actions → Run workflow) or on push to `main`.
 
 Cloud Run / managed Postgres handle the rest; the in-container migration step keeps the schema current on each release.
+
+Prefer Terraform managing the surrounding infra (VPC, DB, cache, secrets, IAM) instead of the
+manual `gcloud`/console steps above? See [`../infra/README.md`](../infra/README.md) — the GitHub
+Actions workflow here still ships the image either way.
