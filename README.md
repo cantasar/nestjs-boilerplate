@@ -126,6 +126,8 @@ The guard fails closed: if it cannot run (for example `node` is not on your PATH
 - `/compare-branches`: before you commit, checks other devs' branches for overlaps and conflicts.
 - `/message <team> <topic>`: writes a message MD for frontend, backend, flutter or design, or handles the inbox.
 
+**Backend only:** this scaffold is for the backend. `communication/frontend/`, `flutter/` and `design/` hold MD messages to those teams, not their code. Claude does not offer to build frontend, Flutter or design code; ask it directly if you really want that.
+
 **MD folders** (`docs/`, `tasks/`, `communication/`) stay on your machine (gitignored). `internal/INTERNAL_CHANGELOG.md` is committed and shared by the backend devs. Personal Claude settings go in `.claude/settings.local.json` (gitignored).
 
 > [!WARNING]

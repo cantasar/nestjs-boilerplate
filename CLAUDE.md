@@ -2,6 +2,8 @@
 
 NestJS 12 API boilerplate: Drizzle + PostgreSQL, Redis, BullMQ, JWT auth, Swagger. Node 26, pnpm only.
 
+> **Backend only.** This repo holds the backend and nothing else. `communication/frontend/`, `flutter/` and `design/` are only for MD messages to those teams, never for their code. Do not write, plan, offer or ask about frontend, Flutter or design code. Do it only when the user asks for it clearly and on their own.
+
 ## Project info
 
 > **Setup first:** while a value below says NOT SET, this is a fresh copy of the template. Claude: before any other work, tell the user and run `/project-setup`. It fills these values and makes `docs/` and `communication/` local only.

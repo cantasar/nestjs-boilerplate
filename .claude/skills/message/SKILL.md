@@ -8,6 +8,8 @@ argument-hint: "<team> <topic>"
 
 Write in the MD language from `CLAUDE.md` → Project info. Short, plain sentences.
 
+This repo is backend only. `communication/` holds MD messages, never code for another team. Do not offer or ask to build the frontend, Flutter or design side; do it only when the user asks for it on their own.
+
 ## Write a new message
 
 1. File: `communication/<team>/will-send/<topic>.md` from `.claude/templates/message.md`.
@@ -24,5 +26,5 @@ Write in the MD language from `CLAUDE.md` → Project info. Short, plain sentenc
 ## Handle the inbox
 
 1. Read new MDs in `communication/<team>/inbox/` and sum each one up in two or three lines.
-2. Suggest the next step: a task in `tasks/todo/`, a reply in `will-send/<topic>-reply.md`, or both. Ask before you create them.
+2. Suggest the next step: a backend task in `tasks/todo/`, a reply in `will-send/<topic>-reply.md`, or both. Ask before you create them.
 3. When the thread is closed, move the inbox MD to `sent-done/` (it means "closed").
