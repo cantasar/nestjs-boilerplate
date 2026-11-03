@@ -1,11 +1,13 @@
+import './load-env';
 import 'reflect-metadata';
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
 import { Pool } from 'pg';
 
-// Serialize migrations across replicas: a session-level advisory lock means only
-// one booting instance migrates at a time; the rest wait, then find the schema
-// already current. Prevents concurrent migrators deadlocking.
+// Advisory lock: only one replica migrates at a time, which avoids deadlocks.
+// The others wait, then find the schema already up to date.
 const ADVISORY_LOCK_KEY = 776655;
 const MIGRATIONS_FOLDER = './drizzle';
 
@@ -22,20 +24,25 @@ function resolveConnectionUrl(): string {
 }
 
 async function main(): Promise<void> {
-  // void-ok
+  // drizzle fails without a journal, so say what to do instead.
+  if (!existsSync(join(MIGRATIONS_FOLDER, 'meta', '_journal.json'))) {
+    throw new Error(
+      'No migrations in ./drizzle. Run `pnpm db:generate` and commit the files.',
+    );
+  }
   const pool = new Pool({ connectionString: resolveConnectionUrl(), max: 1 });
   const db = drizzle(pool);
   // eslint-disable-next-line no-console
   console.log('[migrate] starting');
   try {
     await pool.query('SELECT pg_advisory_lock($1)', [ADVISORY_LOCK_KEY]);
-    // No-op when the migrations folder is missing/empty or the schema is current.
+    // No-op when the schema is already current.
     await migrate(db, { migrationsFolder: MIGRATIONS_FOLDER });
     // eslint-disable-next-line no-console
     console.log('[migrate] done');
   } finally {
-    // Release on every path (incl. migration failure); harmless no-op when the
-    // lock is not held. pool.end() would drop it anyway, but be explicit.
+    // Always release the lock, even if the migration failed. Unlocking is a
+    // harmless no-op when the lock is not held.
     await pool
       .query('SELECT pg_advisory_unlock($1)', [ADVISORY_LOCK_KEY])
       .catch(() => {});

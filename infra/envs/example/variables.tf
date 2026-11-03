@@ -78,7 +78,7 @@ variable "memorystore_instance_name" {
 }
 
 variable "runtime_bucket_names" {
-  description = "GCS buckets the runtime SA gets objectUser on. Leave empty unless GCS_BUCKET is set (storage is optional/feature-flagged in this app — see .env.example)."
+  description = "GCS buckets the runtime SA gets objectUser on. Leave empty unless your app uses GCS."
   type        = list(string)
   default     = []
 }

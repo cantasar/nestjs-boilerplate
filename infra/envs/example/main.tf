@@ -17,14 +17,13 @@ locals {
   # PORT is deliberately NOT here — Cloud Run reserves it (auto-set from
   # container_port), rejects the whole update if it's passed explicitly.
   runtime_env = {
-    NODE_ENV       = "production"
-    GCP_PROJECT_ID = var.project_id
+    NODE_ENV = "production"
   }
 
   # Secret env → Secret Manager refs (version defaults to "latest"). This is
   # the MINIMAL required set for this boilerplate (see .env.example) — add
   # more of the app's optional/feature-flagged vars here the same way as you
-  # adopt them (ZEPTOMAIL_*, SMS_*, SENTRY_DSN, GCS_*, FIRST_ADMIN_*, ...).
+  # adopt them (ZEPTOMAIL_*, GOOGLE_CLIENT_ID, API_KEY, FIRST_ADMIN_*, ...).
   runtime_secret_env = {
     DATABASE_URL           = { secret = "app-database-url" }
     REDIS_URL              = { secret = "app-redis-url" }

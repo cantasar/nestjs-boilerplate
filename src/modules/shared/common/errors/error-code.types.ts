@@ -1,10 +1,6 @@
 import type { HttpStatus } from '@nestjs/common';
 
-/**
- * One entry in a domain error catalog. The `code` is the stable, machine-readable
- * contract surfaced to clients (frontend branches on it); `httpStatus` is the HTTP
- * status this scenario maps to; `message` is the default human-readable text.
- */
+/** One error: a stable `code` clients branch on, its HTTP status and a default message. */
 export interface ErrorCodeDefinition {
   readonly code: string;
   readonly httpStatus: HttpStatus;

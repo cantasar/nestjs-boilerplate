@@ -7,13 +7,8 @@ import { Public } from './public.decorator';
 export const API_KEY_SECURITY_SCHEME = 'api-key';
 
 /**
- * Mark a route as authenticated by the [ApiKeyGuard] (server-to-server).
- *
- * Bundles everything a key-protected route needs:
- * - `@Public()` — bypass the global fail-closed JWT guard (JWT is not used here);
- * - `@UseGuards(ApiKeyGuard)` — enforce the `X-API-Key` header;
- * - `@ApiSecurity('api-key')` — render the Swagger lock + `X-API-Key` input so
- *   the declared scheme is actually consumed (mirrors `@ApiBearerAuth` for JWT).
+ * Protects a server-to-server route with the `X-API-Key` header instead of a
+ * JWT. `@Public()` is only there so the global JWT guard skips the route.
  */
 export function ApiKeyAuth() {
   return applyDecorators(

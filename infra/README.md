@@ -10,6 +10,27 @@ Build trigger module does **not** get carried over — this repo already has its
 cache, secrets, IAM, the Cloud Run service definition); the GitHub Actions workflow keeps shipping
 images.
 
+## Deploy basics
+
+Humans deploy. AI agents in this repo never run `terraform apply` or the deploy workflow.
+
+**Two parts:**
+- **Terraform** (this folder) builds the infra: Cloud Run service, Artifact Registry, Secret Manager, IAM, and optional Cloud SQL / Memorystore.
+- **GitHub "Deploy to Cloud Run" workflow** (manual button) builds the Docker image and ships each new version. Terraform ignores image changes on purpose, so the two never fight.
+
+**App container** ([`../Dockerfile`](../Dockerfile)): Node 26 Alpine, multi-stage build, runs as a non-root user under `dumb-init`. Local test run:
+
+```bash
+docker build -t api .
+docker run --rm -p 3000:3000 --env-file <your-env-file> api
+```
+
+**On start** ([`../scripts/entrypoint.sh`](../scripts/entrypoint.sh)): waits up to 60s for the database, runs Drizzle migrations (a Postgres advisory lock lets only one replica migrate; set `RUN_MIGRATIONS=false` to skip), then starts the app. Migration files are not committed: run `pnpm db:generate` before you build a release image.
+
+**Production env:** set `NODE_ENV=production`, a random `JWT_SECRET` (32+ characters), `CORS_ORIGIN`, and the database / Redis / mail values through Secret Manager. Swagger stays off in production unless `SWAGGER_ENABLED=true` (use basic auth then). Probes: `GET /health` (alive) and `GET /health/ready` (DB + Redis).
+
+**GitHub workflow setup (once):** repo secrets `GCP_PROJECT_ID` and `GCP_SA_KEY` (key of the `cicd` service account that Terraform creates). Tip: Workload Identity Federation is safer than a stored JSON key.
+
 ## Layout
 
 ```
@@ -27,7 +48,7 @@ infra/
     └── lb_serverless_neg/  # HTTPS LB + serverless NEG + managed cert
 ```
 
-Prefer the manual GitHub Actions deploy in [`../docs/DEPLOYMENT.md`](../docs/DEPLOYMENT.md)? That
+Prefer only the manual GitHub Actions deploy (see [Deploy basics](#deploy-basics))? That
 stays completely valid — this is an alternative for when you also want Terraform managing the
 surrounding infra (DB, cache, secrets, networking), not a replacement.
 
@@ -118,7 +139,7 @@ keep shipping without fighting Terraform on every apply.
 
 ### 5 — validate
 `/health/ready` green (DB + Redis reachable if enabled), migrations applied, external APIs
-(mail/SMS/Sentry, if configured) reachable.
+(mail, if configured) reachable.
 
 ## Appendix — adopting an already-deployed service
 

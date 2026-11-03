@@ -1,196 +1,74 @@
 # CLAUDE.md
 
-Behavioral guidelines to reduce common LLM coding mistakes. Project-specific conventions for this NestJS boilerplate follow the general rules.
+NestJS 12 API boilerplate: Drizzle + PostgreSQL, Redis, BullMQ, JWT auth, Swagger. Node 26, pnpm only.
 
-**Stack:** NestJS 11, Drizzle ORM + PostgreSQL, ioredis, Passport JWT, class-validator/class-transformer, nestjs-pino, Swagger. **Node 24, pnpm only** (never npm/yarn). Single language: **English** (i18n is out of scope — do not add locale machinery).
+## Project info
 
-**Tradeoff:** These guidelines bias toward caution over speed. For trivial tasks, use judgment.
+> **Setup first:** while a value below says NOT SET, this is a fresh copy of the template. Claude: before any other work, tell the user and run `/project-setup`. It fills these values and makes `docs/` and `communication/` local only.
 
-## 1. Think Before Coding
+- **Project:** NOT SET
+- **MD language:** NOT SET (for docs/, tasks/ and communication/ MDs)
+- **Backend devs:** NOT SET. If more than one → run `/compare-branches` before every commit and log every finished task in `internal/INTERNAL_CHANGELOG.md`
+- **Base branch:** NOT SET
+- **Deploy:** Terraform in `infra/` + manual GitHub "Deploy" workflow. Humans only.
 
-**Don't assume. Don't hide confusion. Surface tradeoffs.**
+## Hard rules
 
-- State your assumptions explicitly. If uncertain, ask.
-- If multiple interpretations exist, present them - don't pick silently.
-- If a simpler approach exists, say so. Push back when warranted.
-- If something is unclear, stop. Name what's confusing. Ask.
+1. **Never commit, push, pull, merge, rebase, tag or open a PR.** Humans do all git writes.
+2. **Never deploy.** No `terraform apply`/`destroy`, no `gcloud run deploy`, no `docker push`.
+3. **Never read or edit `.env` or `.env.*` files** (only `.env.example`). Never ask anyone for keys, passwords or tokens. Use placeholders.
+4. **You are the coder agent. Never run tests, not even a smoke test.** No `pnpm test*`, no jest, no starting the app to try an endpoint. The `tester` agent writes and runs all tests. You may run `pnpm install`, `pnpm build`, `pnpm lint`, `pnpm lint:check`, `pnpm format`.
+5. **Comments: max 1 or 2 short sentences.**
+6. **Talk simply.** Short sentences and plain words in every reply and question.
+7. **Ask before big choices and give your recommendation.** Always speak up about security.
+8. **Use the latest stable and secure version** of every package and tool. Check before you add one.
+9. **Keep the file structure clean.** Follow `.claude/rules/nestjs.md` (loads when you touch `src/` or `test/`).
 
-## 2. Simplicity First
+`.claude/settings.json` and `.claude/hooks/guard.mjs` enforce rules 1–4. If a call is blocked, do not look for a way around it. Tell the user. The guard stops mistakes but is not a sandbox, so follow the rules even where nothing blocks you.
 
-**Minimum code that solves the problem. Nothing speculative.**
+## How a task runs
 
-- No features beyond what was asked.
-- No abstractions for single-use code.
-- No "flexibility" or "configurability" that wasn't requested.
-- No error handling for impossible scenarios.
-- If you write 200 lines and it could be 50, rewrite it.
+1. **Start:** create `tasks/in-progress/<task-name>.md` from `.claude/templates/task.md`. Work for later goes to `tasks/todo/`.
+2. **Code:** follow `.claude/rules/`.
+3. **Test:** when the code is ready, run the **tester** agent with the task name and what changed. It writes and runs the tests, reviews your code, logs to `tasks/test-logs/<task-name>.md` and lists fixes in `tasks/corrections/<task-name>.md`.
+4. **Fix:** fix every open HIGH and MEDIUM correction, then run the tester again. Repeat until PASS.
+5. **Close:** run `/task-done`. It writes the changelog, moves the files, compares branches and asks before deleting done files.
 
-Ask yourself: "Would a senior engineer say this is overcomplicated?" If yes, simplify.
+Tiny tasks (a question, a one-line config change) need no task file, but still end with the final report.
 
-## 3. Surgical Changes
+## Final report (end of every task)
 
-**Touch only what you must. Clean up only your own mess.**
+- **Status:** Done ✅ or Not done ❌ (say what is left and why)
+- **Commit:** what to commit, or "nothing to commit". Multi-dev: "Run /compare-branches first."
+- **Deploy:** "No deploy needed" or "Deploy needed: Terraform / GitHub Deploy workflow. I did not deploy."
 
-- Don't "improve" adjacent code, comments, or formatting.
-- Don't refactor things that aren't broken.
-- Match existing style, even if you'd do it differently.
-- If you notice unrelated dead code, mention it - don't delete it.
-- Remove imports/variables/functions that YOUR changes made unused. Don't remove pre-existing dead code unless asked.
+## MD files
 
-The test: Every changed line should trace directly to the user's request.
-
-## 4. Goal-Driven Execution
-
-**Define success criteria. Loop until verified.**
-
-- "Add validation" → "Write tests for invalid inputs, then make them pass"
-- "Fix the bug" → "Write a test that reproduces it, then make it pass"
-- "Refactor X" → "Ensure tests pass before and after"
-
-For multi-step tasks, state a brief plan with a verify check per step. Strong success criteria let you loop independently; weak criteria ("make it work") require constant clarification.
-
----
-
-## 5. Project Structure
-
-All feature code lives under `src/modules/`, **grouped by domain**. Place new code in the matching group; do not add new top-level folders under `src/`.
+Write them in the MD language above. Code, comments, `README.md` and this file stay in English.
 
 ```
-src/
-├── app.module.ts                  # root wiring: global guards, ConfigModule, LoggerModule, ThrottlerModule, feature modules
-├── main.ts                        # bootstrap: helmet, CORS, body parser, versioning, global pipe + filter, swagger
-├── swagger/                       # bootstrap-only swagger setup, NOT a NestJS module
-└── modules/
-    ├── shared/                    # cross-cutting infra (imported by 3+ modules)
-    │   ├── common/                # config, decorators, enums, filters, guards, types, utils, validators
-    │   ├── database/              # Drizzle schema, types, repositories, DatabaseModule, injection tokens
-    │   └── redis/                 # ioredis client + RedisService
-    ├── platform/                  # platform-level services (transports / infra-as-feature)
-    │   ├── auth/                  # JWT, OAuth (Google/Apple), password reset, strategies
-    │   ├── mail/                  # transactional mail + templates
-    │   └── health/                # /health (VERSION_NEUTRAL, unprefixed)
-    ├── user/                      # end-user-facing (mobile/web app) features — add as needed
-    ├── admin/                     # admin-panel features — add as needed
-    └── _template/                 # copy-from scaffold; NOT wired into production behavior
-        └── todo/                  # reference feature: controller + service + repository + dto + specs
+docs/            (gitignored*) PLAN.md, ROADMAP.md, CHANGELOG.md
+tasks/           (gitignored)  todo/, in-progress/, done/, test-logs/, corrections/
+communication/   (gitignored*) frontend/, backend/, flutter/, design/
+                 each with inbox/, will-send/, sent-waiting/, sent-done/
+internal/        (committed)   INTERNAL_CHANGELOG.md
 ```
 
-`user/` and `admin/` are **conventional groups** — create the directory when the first feature lands there. Do not invent other top-level groups.
+\* The template ships empty `docs/` and `communication/` folders, so git still tracks them. `/project-setup` tells the user to untrack them once.
 
-### Groups — where does new code go?
+Missing folders? Run `/project-setup`. Templates are in `.claude/templates/`.
 
-- **`shared/`** — infra used by 3+ modules (config, DB, redis, global guards/filters/decorators). Otherwise keep it inside the consuming feature.
-- **`platform/`** — a transport or infrastructure capability exposed as a feature (auth, mail, sms, storage, health). One external concern per folder.
-- **`user/`** — features the mobile/web client calls (profile, etc.).
-- **`admin/`** — admin-panel/back-office features.
-- **`_template/`** — the scaffold you copy from. Never add real product logic here, never depend on it from production modules.
+**Naming:** kebab-case, short and clear, never start with a date: `login-rate-limit.md`. One task keeps the same name in `tasks/in-progress/`, `test-logs/` and `corrections/`. A reply is `<topic>-reply.md`.
 
-### Routing & versioning
+**Moving MDs (do it yourself, right away):**
+- Task: `todo/` → `in-progress/` (work starts) → `done/` (tester PASS + changelog written).
+- Message: `will-send/` → `sent-waiting/` (sent, needs an answer) or `sent-done/` (sent, no answer needed). `sent-waiting/` → `sent-done/` when the answer comes. A handled inbox MD → `sent-done/` (it means closed).
+- Done task files may be deleted only after they are in the changelog **and** the user says yes.
 
-Native URI versioning + global prefix, configured once in [`src/modules/shared/common/config/app-versioning.ts`](src/modules/shared/common/config/app-versioning.ts) (`configureVersioning`, called from `main.ts`):
+Use `/message` to write or handle team messages.
 
-- `API_PREFIX = 'api'`, `API_VERSION = '1'` → every route resolves under `/api/v1/...`.
-- Controllers declare `@Controller({ path: 'todos', version: '1' })`. The `/api` prefix is injected globally; the `version` segment becomes `/v1`.
-- **Unversioned infra:** `health` and root `/` are excluded from the prefix and declared `VERSION_NEUTRAL`, so they resolve at `/health` and `/`.
-- **Adding a v2:** drop a sibling controller `@Controller({ path, version: '2' })` in the same feature folder reusing the existing service. No prefix change needed → `/api/v2/...`.
+## Other rules
 
-### Per-feature folder layout
-
-Keep a feature flat until a category earns a subfolder. Create the subfolder only when its rule fires (else keep the file at the feature root):
-
-```
-modules/<group>/<feature>/
-  <feature>.module.ts                # always at root
-  <feature>.controller.ts            # flat if 1; controllers/ when ≥2
-  <feature>.service.ts               # flat if 1; services/ when ≥2
-  <feature>.repository.ts            # flat if 1; repositories/ when ≥2
-  <feature>.constants.ts             # OR constants/*.constants.ts when many
-  dto/        <x>.dto.ts             # one exported class per file (see SoC)
-  interfaces/ <x>.types.ts           # exported type/interface extracted from logic files
-  mappers/    <x>.mapper.ts          # PURE entity→DTO mapping pulled out of services
-  enums/ events/ listeners/ utils/ lib/
-  *.spec.ts                          # specs co-located (jest testRegex matches any depth)
-```
-
-The `_template/todo` feature is the reference layout: controller + service + repository + `dto/` + co-located `*.spec.ts`.
-
-### Database conventions
-
-- Drizzle schema lives in `shared/database/schema/*.schema.ts`, re-exported from `schema/index.ts`.
-- Inferred row types go in `shared/database/types/` (`<x>-select.type.ts`, `<x>-insert.type.ts`). Import the inferred type, don't redefine row shapes.
-- The Drizzle instance is injected via the `DATABASE_TOKENS.DRIZZLE` symbol (see `database.tokens.ts`). Repositories take it through DI; never call `drizzle()` outside `DatabaseModule`.
-- **Migrations are out of band.** Do not run `db:generate`/`db:migrate` as part of a feature change unless explicitly asked.
-
-### Import-path convention
-
-- No path aliases configured. Use **relative paths**, e.g. from `modules/_template/todo/` import the guard via `../../shared/common/guards/jwt.guard`. Don't add `@modules/*` aliases without discussion.
-
-## 6. Adding a new feature (copy `_template/todo`)
-
-1. Copy `src/modules/_template/todo/` into the right group (`user/<feature>`, `admin/<feature>`, or `platform/<feature>`).
-2. Rename files/classes (`todo` → `<feature>`); fix relative imports.
-3. Define the Drizzle schema in `shared/database/schema/`, export from `index.ts`, add inferred types under `shared/database/types/`.
-4. Wire the feature module into `AppModule.imports` in `app.module.ts`.
-5. Add Swagger decorators on the controller; one response DTO per shape.
-6. Add `*.spec.ts` for service and controller.
-
-## 7. Port / interface strategy & swap points
-
-Every external dependency is reached through a **NestJS provider behind an injection token or a thin service**, so the implementation can be swapped without touching callers. Callers depend on the abstraction, never the vendor SDK.
-
-| Concern  | Swap point | Token / abstraction | Vendor today |
-|----------|-----------|---------------------|--------------|
-| Database | `shared/database/database.module.ts` | `DATABASE_TOKENS.DRIZZLE` / `DRIZZLE_POOL` | `pg` Pool + Drizzle |
-| Cache / KV | `shared/redis/redis.service.ts` | `REDIS_CLIENT` token + `RedisService` API | ioredis |
-| Mail | `platform/mail/mail.service.ts` | `MailService` public methods | ZeptoMail |
-| Auth identity | `platform/auth/strategies/jwt.strategy.ts` + OAuth verifiers | Passport strategy + `AuthService` | passport-jwt, google/apple verifiers |
-
-**To swap a vendor:** replace the implementation behind the token/service and keep its public signature. Consumers (`@Inject(TOKEN)` or constructor-injected service) are untouched. New external concerns follow the same shape: add a `platform/<concern>/` folder, expose a service or token, never leak the SDK type past the service boundary.
-
-## 8. Response envelope (v1 contract)
-
-Every JSON response from a versioned (`/api/v1`) route is a **single, uniform envelope**. The HTTP status line is the source of truth for success; the body restates it via the `success` flag.
-
-**Success** (2xx):
-```json
-{ "success": true, "data": <payload>, "meta": { ... } }
-```
-- `data` is the resource or list. `meta` is optional (pagination, totals); omit when empty.
-- A `204 No Content` is normalized to **`200` + `data: null`** so clients always parse a body.
-
-**Error** (4xx/5xx):
-```json
-{ "success": false, "error": { "code": "STRING_CODE", "message": "human readable", "details": [ ... ] } }
-```
-- `error.code` is a stable machine string; `message` is for humans/logs; `details` is optional (e.g. per-field validation issues).
-
-**Hard rules:**
-- **A `200` response with `success: false` is forbidden.** Failures carry a 4xx/5xx status. Never return `success: false` on a 2xx.
-- **Services throw; the global filter wraps.** Business code throws a typed exception and returns the domain object on success — it does not assemble the envelope. The success envelope is applied by a response interceptor; the error envelope by the global exception filter ([`http-exception.filter.ts`](src/modules/shared/common/filters/http-exception.filter.ts)).
-- Controllers return the **domain object / DTO**, not the envelope.
-
-## 9. Error & HTTP status policy
-
-- **400 vs 422.** `400 Bad Request` = the request could not be parsed/validated (malformed body, wrong type, `ValidationPipe` rejection). `422 Unprocessable Entity` = the request was well-formed but violates a **business rule** (e.g. email already taken, state transition not allowed). Pick the status by this distinction, not by habit.
-- **Throw typed exceptions, never `throw new Error(...)`** in request-handling code. Use `DomainException` (or the matching Nest `HttpException` subclass) carrying a stable `code` from a central **error registry** (`shared/common/errors/`), so the same failure always maps to the same `error.code` + status. `throw new Error` is reserved for truly unexpected/internal faults and surfaces as `500`.
-- The global filter ([`http-exception.filter.ts`](src/modules/shared/common/filters/http-exception.filter.ts)) is the **only** place that serializes errors. It maps the exception → status + envelope, logs 5xx with stack and 4xx as warnings, and never leaks internal messages on a `500`.
-
-## 10. Separation of concerns (SoC)
-
-- **One DTO file = one exported class.** `create-todo.dto.ts` exports exactly `CreateTodoDto`. No bundling multiple DTOs per file.
-- **No inline `type`/`interface` inside a DTO file.** Shared/extracted types live in `interfaces/<x>.types.ts`. A DTO file contains only its request/response class.
-- **Constants live in `constants/<x>.constants.ts`** (or a feature-root `<feature>.constants.ts` when small). No magic literals scattered across services.
-- **Mappers are pure** (`mappers/<x>.mapper.ts`): entity → DTO with no `this`/DI dependency. Mapping that needs injected state (e.g. building a presigned URL) stays inline in the service.
-- **Layering:** controller (HTTP + Swagger + validation) → service (business logic, throws domain exceptions) → repository (Drizzle queries only). Don't query the DB from a controller or put HTTP concerns in a repository. A `*.service.ts` must **never** inject `DATABASE_TOKENS`/`DRIZZLE` — DB access belongs in a repository (enforced by `lint:no-db-in-service`).
-- **Type-safety discipline.** Don't reach for `unknown`, `as unknown as`, `as never`, or non-null `!` to silence the checker. `unknown` is allowed **only at genuine input boundaries** (`catch (e: unknown)`, `JSON.parse`, class-validator `@Transform`/validators, external payloads) and must be narrowed before use — mark a legitimate one with a `// boundary: validated` comment (same/adjacent line). No `as unknown as` double-cast or `as never` in production (enforced by `lint:no-double-cast` / `lint:no-prod-never`); `Promise<unknown|any>` is not allowed (`lint:no-untyped-promise`, opt out a deliberate one with `// void-ok`). The opt-in `lint:no-unsanctioned-unknown` guard enforces the boundary convention — adopt it (chain into `lint:check` + lint-staged) once existing boundary sites carry the marker.
-- **Domains stay decoupled.** A feature module must not import another feature's service, repository, or schema tables directly. Cross-domain links go through a generic abstraction — a port behind an injection token (e.g. `ASSET_PORT`, `DOCUMENT_STORE`) or an **opaque generic reference** (`(entityType, entityId)` pairs the platform layer assigns no meaning to) — never a hard dependency on another domain's internals. `platform/` modules in particular are domain-agnostic: they know nothing about which tables hold their keys or what an entity *is*. Truly shared concerns move to `shared/`. This keeps each domain independently swappable, testable, and free of cross-feature import cycles.
-
-## 11. Tooling
-
-- **pnpm only.** `pnpm install`, `pnpm build`, `pnpm test`, `pnpm lint`.
-- Lint/format via **Oxlint + Oxfmt** (`pnpm lint`, `pnpm format`). Husky + lint-staged run them on staged files.
-- **i18n is out of scope.** All user-facing strings are English; do not add translation layers.
-
----
-
-**These guidelines are working if:** fewer unnecessary changes in diffs, fewer rewrites due to overcomplication, and clarifying questions come before implementation rather than after mistakes.
+- Update `README.md` after big changes: new module, new env var group, changed setup or endpoints.
+- Keep `.env.example` and `src/modules/shared/common/config/env.schema.ts` in sync.
+- Terraform rules: `.claude/rules/terraform.md` (loads when you touch `infra/`).

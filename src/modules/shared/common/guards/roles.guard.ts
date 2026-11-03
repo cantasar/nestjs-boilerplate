@@ -1,14 +1,11 @@
 import { CanActivate, ExecutionContext, Injectable } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { ROLES_KEY } from '../decorators/roles.decorator';
-import { UserRole } from '../enums/user-role.enum';
+import { UserRole } from '../../database/schema/enums/user-role.enum';
 import { DomainException } from '../errors/domain.exception';
-import { CommonErrorCode } from '../errors/error-codes';
+import { CommonErrorCode } from '../errors/enums/common-error-code.enum';
 
-/**
- * Enforces `@Roles(...)`. Assumes a preceding auth guard has populated
- * `request.user`. Routes with no `@Roles` metadata pass through.
- */
+/** Enforces `@Roles(...)` after the JWT guard sets `request.user`. Routes without `@Roles` pass. */
 @Injectable()
 export class RolesGuard implements CanActivate {
   constructor(private readonly reflector: Reflector) {}

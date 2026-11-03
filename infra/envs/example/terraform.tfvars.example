@@ -24,7 +24,7 @@ enable_memorystore = false
 # cloud_sql_instance_name   = "app-db"
 # cloud_sql_tier            = "db-f1-micro"
 # memorystore_instance_name = "app-redis"
-# runtime_bucket_names      = []   # only if GCS_BUCKET is set (see .env.example)
+# runtime_bucket_names      = []   # only if your app uses GCS
 
 # --- Rollout toggles ---
 manage_api_template = true   # true = fresh greenfield apply. Set false first if importing an existing service (see README runbook).

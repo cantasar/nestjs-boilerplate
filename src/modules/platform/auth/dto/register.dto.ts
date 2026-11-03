@@ -9,11 +9,12 @@ import {
 } from 'class-validator';
 
 export class RegisterDto {
-  @ApiProperty({ example: 'user@example.com' })
+  @ApiProperty({ example: 'user@example.com', maxLength: 255 })
   @Transform(({ value }: { value: unknown }) =>
     typeof value === 'string' ? value.trim().toLowerCase() : value,
   )
   @IsEmail()
+  @MaxLength(255)
   email: string;
 
   @ApiProperty({ example: 'password123', minLength: 6, maxLength: 72 })
@@ -22,19 +23,21 @@ export class RegisterDto {
   @MaxLength(72, { message: 'Password must be at most 72 characters' })
   password: string;
 
-  @ApiPropertyOptional({ example: 'John' })
+  @ApiPropertyOptional({ example: 'John', maxLength: 100 })
   @Transform(({ value }: { value: unknown }) =>
     typeof value === 'string' ? value.trim() : value,
   )
   @IsString()
+  @MaxLength(100)
   @IsOptional()
   firstName?: string;
 
-  @ApiPropertyOptional({ example: 'Doe' })
+  @ApiPropertyOptional({ example: 'Doe', maxLength: 100 })
   @Transform(({ value }: { value: unknown }) =>
     typeof value === 'string' ? value.trim() : value,
   )
   @IsString()
+  @MaxLength(100)
   @IsOptional()
   lastName?: string;
 }

@@ -1,5 +1,4 @@
-import './instrument'; // Sentry — must be the first import (it loads dotenv too).
-import { join } from 'node:path';
+import './load-env';
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import type { NestExpressApplication } from '@nestjs/platform-express';
@@ -8,7 +7,6 @@ import { Logger } from 'nestjs-pino';
 import { AppModule } from './app.module';
 import { ConfigService } from '@nestjs/config';
 import {
-  API_PREFIX,
   DOCS_PREFIX,
   configureVersioning,
 } from './modules/shared/common/config/app-versioning';
@@ -16,7 +14,6 @@ import { HttpExceptionFilter } from './modules/shared/common/filters/http-except
 import { setupSwagger } from './swagger/setup-swagger';
 
 async function bootstrap(): Promise<void> {
-  // void-ok
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     bufferLogs: true,
     bodyParser: false,
@@ -29,26 +26,13 @@ async function bootstrap(): Promise<void> {
   app.set('trust proxy', 1);
   app.disable('x-powered-by');
 
-  // Serve static assets straight from the backend. Express static middleware
-  // runs ahead of the Nest router, so it sits outside the /api prefix and
-  // bypasses the throttler guard.
-  app.useStaticAssets(join(process.cwd(), 'public'), {
-    index: false,
-    maxAge: '7d',
-  });
-
   const bodyParserLimit =
     configService.get<string>('BODY_PARSER_LIMIT') ?? '1mb';
   app.useBodyParser('json', { limit: bodyParserLimit });
   app.useBodyParser('urlencoded', { limit: bodyParserLimit, extended: true });
 
-  app.use(
-    helmet({
-      // CSP disabled because Swagger UI relies on inline scripts (customJsStr).
-      // Other Helmet protections (HSTS, X-Frame-Options, X-Content-Type-Options) stay on.
-      contentSecurityPolicy: false,
-    }),
-  );
+  // CSP is off because Swagger UI needs inline scripts. Other Helmet headers stay on.
+  app.use(helmet({ contentSecurityPolicy: false }));
 
   app.enableCors({
     origin: resolveCorsOrigin(configService, isProduction),
@@ -65,10 +49,7 @@ async function bootstrap(): Promise<void> {
   );
   app.useGlobalFilters(new HttpExceptionFilter());
 
-  const swaggerEnabled = setupSwagger(app, configService, {
-    apiPrefix: API_PREFIX,
-    docsPrefix: DOCS_PREFIX,
-  });
+  const swaggerEnabled = setupSwagger(app, configService, DOCS_PREFIX);
 
   app.enableShutdownHooks();
 
@@ -79,18 +60,12 @@ async function bootstrap(): Promise<void> {
   if (swaggerEnabled) {
     logger.log(`Swagger UI: http://localhost:${port}/${DOCS_PREFIX}/docs`);
     logger.log(
-      `OpenAPI JSON: http://localhost:${port}/${DOCS_PREFIX}/docs/openapi.json`,
-    );
-    logger.log(
       `Mobile Swagger UI: http://localhost:${port}/${DOCS_PREFIX}/mobile/docs`,
     );
-    const basicUser = configService.get<string>('SWAGGER_BASIC_AUTH_USER');
-    if (basicUser?.trim()) {
-      logger.log('Swagger: protected with HTTP Basic Auth');
-    }
   }
 }
 
+/** CORS_ORIGIN is a comma list. Empty means all origins in dev and none in production. */
 function resolveCorsOrigin(
   config: ConfigService,
   isProduction: boolean,
@@ -103,8 +78,7 @@ function resolveCorsOrigin(
         .filter(Boolean)
     : [];
   if (list.length > 0) return list;
-  if (isProduction) return false;
-  return true;
+  return !isProduction;
 }
 
 bootstrap().catch((err: unknown) => {

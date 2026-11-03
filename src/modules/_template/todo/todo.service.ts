@@ -52,7 +52,6 @@ export class TodoService {
   }
 
   async remove(id: number, userId: number): Promise<void> {
-    // void-ok
     const todo = await this.todoRepository.findById(id, userId);
     if (!todo) throw new NotFoundException('Todo not found');
     await this.todoRepository.delete(id, userId);

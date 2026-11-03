@@ -1,18 +1,19 @@
-# Optional: for local development only (DB + Redis).
-# In production use a managed DB (Neon/Supabase/Cloud SQL) and Redis.
-# Env defaults match .env.example (DATABASE_NAME=app, postgres/postgres).
+# Local development only: PostgreSQL + Redis. Production uses managed services.
+# Values match .env.example. Versions match the infra defaults (Cloud SQL Postgres 17, Memorystore Redis 7.2).
 
 services:
   db:
-    image: postgres:16-alpine
+    image: postgres:17-alpine
+    # Localhost only: the default password must not be reachable from the network.
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: app
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      # New volume name, so an old Postgres 16 volume is not reused.
+      - pgdata:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d app"]
       interval: 5s
@@ -20,9 +21,9 @@ services:
       retries: 5
 
   redis:
-    image: redis:7-alpine
+    image: redis:7.2-alpine
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -30,4 +31,4 @@ services:
       retries: 5
 
 volumes:
-  postgres_data:
+  pgdata:

@@ -15,13 +15,8 @@ interface ApiKeyRequest {
 }
 
 /**
- * Authenticates server-to-server requests by their `X-API-Key` header against
- * the configured `API_KEY`. On success attaches `request.apiClient`; otherwise
- * throws a generic 401.
- *
- * Fail-closed: when `API_KEY` is not configured, every request is rejected —
- * so a route can never be silently unprotected. Comparison is constant-time to
- * avoid leaking the key via timing.
+ * Checks `X-API-Key` against `API_KEY` in constant time, so timing can't leak
+ * the key. Fails closed: if `API_KEY` is not set, every request is rejected.
  */
 @Injectable()
 export class ApiKeyGuard implements CanActivate {

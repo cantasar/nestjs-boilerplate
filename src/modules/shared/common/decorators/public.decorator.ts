@@ -4,9 +4,8 @@ import { SetMetadata } from '@nestjs/common';
 export const IS_PUBLIC_KEY = 'isPublic';
 
 /**
- * Marks a route (or whole controller) as public so the global JwtAuthGuard lets
- * the request through without a valid JWT. Auth is fail-closed by default — every
- * route requires a token unless explicitly opted out with `@Public()`.
+ * Lets a route or controller skip the global JWT check. Every other route
+ * needs a valid JWT by default.
  */
 export const Public = (): MethodDecorator & ClassDecorator =>
   SetMetadata(IS_PUBLIC_KEY, true);

@@ -1,10 +1,7 @@
 import type { PaginationMetaDto } from '../dto/pagination-meta.dto';
 import { PAGINATED_MARKER, type Paginated } from '../types/paginated.type';
 
-/**
- * Build the standard pagination meta from a total count and the current page /
- * limit. Single source for the envelope's `meta` shape.
- */
+/** Builds the envelope's `meta` from the total count, page and limit. */
 export function buildPaginationMeta(
   totalCount: number,
   page: number,
@@ -21,11 +18,7 @@ export function buildPaginationMeta(
   };
 }
 
-/**
- * Wrap a page of rows + its total into a `Paginated<T>` (marker attached) so the
- * response interceptor unwraps it into `{ success, data, meta }`. Services return
- * this from list endpoints.
- */
+/** Wraps a page of rows into a `Paginated<T>` for paginated list endpoints. */
 export function paginate<T>(
   data: T[],
   totalCount: number,

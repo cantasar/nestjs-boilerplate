@@ -23,25 +23,20 @@ export class HealthController {
     private readonly redisService: RedisService,
   ) {}
 
-  // Liveness: process is up. No dependency checks — used by orchestrators to
-  // decide whether to restart the container.
+  // Liveness: used to decide restarts, so it does not check dependencies.
   @Get('live')
   live(): { status: string; timestamp: string } {
     return { status: 'ok', timestamp: new Date().toISOString() };
   }
 
-  // General health: same lightweight signal as liveness, mounted at the root
-  // `/health` path for convenience.
+  // Same light check as liveness, at the root `/health` path.
   @Get()
   health(): { status: string; timestamp: string } {
     return { status: 'ok', timestamp: new Date().toISOString() };
   }
 
-  // Readiness: verifies downstream dependencies (DB + Redis) before the service
-  // is allowed to receive traffic.
-  // RawResponse: this endpoint sets its own status (503 when degraded) and
-  // returns a diagnostic body, so it must bypass the success-envelope
-  // interceptor (which would otherwise emit `success: true` on a 503).
+  // Readiness: checks DB and Redis before the service gets traffic.
+  // RawResponse skips the envelope, which would say `success: true` on a 503.
   @Get('ready')
   @RawResponse()
   async ready(@Res({ passthrough: true }) res: Response): Promise<{
