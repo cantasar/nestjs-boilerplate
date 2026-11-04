@@ -47,6 +47,11 @@
       "Bash(terraform taint *)",
       "Bash(gcloud run deploy *)",
       "Bash(gcloud builds submit *)",
+      "Bash(aws ecs update-service *)",
+      "Bash(aws ecs register-task-definition *)",
+      "Bash(aws ecr get-login-password*)",
+      "Bash(aws secretsmanager get-secret-value *)",
+      "Bash(aws secretsmanager put-secret-value *)",
       "Bash(docker push *)",
       "Bash(docker image push *)",
       "Bash(npm publish*)",
@@ -66,7 +71,7 @@
   "hooks": {
     "PreToolUse": [
       {
-        "matcher": "Bash|Read|Edit|Write|MultiEdit|NotebookEdit|Grep|mcp__.*__run_in_terminal|mcp__.*__preview_start|mcp__.*__navigate",
+        "matcher": "Bash|Read|Edit|Write|MultiEdit|NotebookEdit|Grep|Agent|Task|mcp__.*__run_in_terminal|mcp__.*__preview_start|mcp__.*__navigate",
         "hooks": [
           {
             "type": "command",
