@@ -68,7 +68,7 @@ src/
     ├── shared/             common (config, errors, guards, decorators), database, redis
     ├── platform/           auth, mail, queue, webhooks, health, internal, seeds
     └── _template/todo/     copy this to start a new feature
-infra/                      Terraform for GCP (see infra/README.md)
+infra/                      Terraform for GCP (infra/gcp) or AWS (infra/aws), see infra/README.md
 .claude/                    Claude Code setup (see below)
 ```
 
@@ -100,7 +100,9 @@ All of them are listed with short notes in [`.env.example`](.env.example) and ch
 
 ## Deploy
 
-Terraform builds the infra and a manual GitHub workflow ships new versions. Steps: [`infra/README.md`](infra/README.md).
+Terraform builds the infra on GCP (Cloud Run) or AWS (ECS Fargate). A manual GitHub **Deploy** workflow ships new versions.
+
+Deploy is **off by default**, so a fresh copy never deploys. Turn it on by setting the repository variable `DEPLOY_TARGET` to `gcp` or `aws`. Steps: [`infra/README.md`](infra/README.md).
 
 ## Working with Claude Code
 
@@ -112,11 +114,23 @@ This repo has a Claude Code setup that follows the team rules.
 |---|---|
 | [`CLAUDE.md`](CLAUDE.md) | Main rules Claude reads every session: project info, hard rules, task flow, MD folders |
 | `.claude/settings.json` | Blocks commit/push, deploy commands and secret files (`.env`, `*.tfvars`, keys) |
-| `.claude/hooks/guard.mjs` | Blocks env and secret files, commit/push/deploy commands, tests or app starts outside the tester agent, and tester writes to app code |
-| `.claude/agents/tester.md` | The **tester** agent: writes and runs all tests, reviews the code, logs runs, writes corrections |
+| `.claude/hooks/guard.mjs` | Blocks env and secret files, commit/push/deploy commands, secret managers (doppler, op, infisical, dotenv), tests or app starts outside the tester session, and tester writes to app code |
+| `.claude/agents/tester.md` | The **tester** session: writes and runs all tests, reviews the code, logs runs, writes corrections, ends each round with a coder prompt |
 | `.claude/rules/` | Code rules (load when Claude touches `src/`, `test/` or `infra/`) |
 | `.claude/skills/` | Slash commands (below) |
 | `.claude/templates/` | MD templates for tasks, messages, logs and changelogs |
+
+**Task flow:** each task runs with two sessions, one coder and one tester. Keep both open for the whole task.
+
+```bash
+claude
+```
+
+```bash
+claude --agent tester
+```
+
+The coder ends with a **tester prompt**. Paste it into the tester session. The tester ends with a **coder prompt** (fixes, or PASS → `/task-done`). Paste it back. Repeat until PASS. Formats are in `CLAUDE.md` → How a task runs.
 
 The guard fails closed: if it cannot run (for example `node` is not on your PATH), Claude's tool calls are blocked until you fix it. It needs Claude Code 2.1.295 or newer.
 
@@ -142,5 +156,5 @@ The guard fails closed: if it cannot run (for example `node` is not on your PATH
 ## Known limits
 
 - **Rate limits behind the HTTPS load balancer.** The auth limit is 5 tries per minute per IP. With `enable_lb = true`, the app may see the load balancer's IP for every user (`trust proxy` is 1 in `src/main.ts`). Then all users share one limit. Check `req.ip` on a test deploy before you turn the load balancer on. The default deploy has no load balancer and is fine.
-- **The guard is a safety net, not a sandbox.** A few odd hand-made shell commands can get past `.claude/hooks/guard.mjs` (for example a `cd` into a missing folder followed by a relative `cd`). Claude does not write these by accident.
+- **The guard is a safety net, not a sandbox.** A few odd hand-made shell commands can get past `.claude/hooks/guard.mjs` (for example turning on `shopt -s dotglob` first, so a plain `*` reaches hidden folders). Claude does not write these by accident. Where the guard cannot read a command, it blocks it: code piped into a shell, a variable or glob as the command name, unusual heredoc delimiters.
 - **Swagger** does not list `AUTH_PROVIDER_DISABLED` on the Google and Apple routes, or `AUTH_SOCIAL_ACCOUNT` on change-password. The API returns them as 400.
