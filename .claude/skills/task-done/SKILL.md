@@ -1,6 +1,6 @@
 ---
 name: task-done
-description: Close a finished task. Use at the end of every task, after the tester agent said PASS. Writes the changelog, moves the task MDs, compares branches when more than one backend dev works here, updates README when needed and gives the final done/commit/deploy report.
+description: Close a finished task. Use at the end of every task, after the tester session said PASS. The coder runs it, never the tester. Writes the changelog, moves the task MDs, compares branches when more than one backend dev works here, updates README when needed and gives the final done/commit/deploy report.
 ---
 
 # Close a task

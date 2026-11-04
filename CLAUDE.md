@@ -12,14 +12,14 @@ NestJS 12 API boilerplate: Drizzle + PostgreSQL, Redis, BullMQ, JWT auth, Swagge
 - **MD language:** NOT SET (for docs/, tasks/ and communication/ MDs)
 - **Backend devs:** NOT SET. If more than one → run `/compare-branches` before every commit and log every finished task in `internal/INTERNAL_CHANGELOG.md`
 - **Base branch:** NOT SET
-- **Deploy:** Terraform in `infra/` + manual GitHub "Deploy" workflow. Humans only.
+- **Deploy:** Terraform in `infra/gcp/` or `infra/aws/` + manual GitHub "Deploy" workflow, off until the repo variable `DEPLOY_TARGET` is set. Humans only.
 
 ## Hard rules
 
 1. **Never commit, push, pull, merge, rebase, tag or open a PR.** Humans do all git writes.
 2. **Never deploy.** No `terraform apply`/`destroy`, no `gcloud run deploy`, no `docker push`.
 3. **Never read or edit `.env` or `.env.*` files** (only `.env.example`). Never ask anyone for keys, passwords or tokens. Use placeholders.
-4. **You are the coder agent. Never run tests, not even a smoke test.** No `pnpm test*`, no jest, no starting the app to try an endpoint. The `tester` agent writes and runs all tests. You may run `pnpm install`, `pnpm build`, `pnpm lint`, `pnpm lint:check`, `pnpm format`.
+4. **You are the coder, unless this session was started with `claude --agent tester`. The coder never runs tests, not even a smoke test.** No `pnpm test*`, no jest, no starting the app to try an endpoint. The tester session writes and runs all tests. The coder may run `pnpm install`, `pnpm build`, `pnpm lint`, `pnpm lint:check`, `pnpm format`. If you are the tester, follow `.claude/agents/tester.md` instead of this rule.
 5. **Comments: max 1 or 2 short sentences.**
 6. **Talk simply.** Short sentences and plain words in every reply and question.
 7. **Ask before big choices and give your recommendation.** Always speak up about security.
@@ -30,15 +30,47 @@ NestJS 12 API boilerplate: Drizzle + PostgreSQL, Redis, BullMQ, JWT auth, Swagge
 
 ## How a task runs
 
-1. **Start:** create `tasks/in-progress/<task-name>.md` from `.claude/templates/task.md`. Work for later goes to `tasks/todo/`.
-2. **Code:** follow `.claude/rules/`.
-3. **Test:** when the code is ready, run the **tester** agent with the task name and what changed. It writes and runs the tests, reviews your code, logs to `tasks/test-logs/<task-name>.md` and lists fixes in `tasks/corrections/<task-name>.md`.
-4. **Fix:** fix every open HIGH and MEDIUM correction, then run the tester again. Repeat until PASS.
-5. **Close:** run `/task-done`. It writes the changelog, moves the files, compares branches and asks before deleting done files.
+Every task runs with two sessions side by side: one **coder** (a normal `claude` session) and one **tester** (`claude --agent tester`). Keep the same two sessions for the whole task. One pair can also do a few tasks in a row. The two sessions never call each other. Each one ends its turn with a prompt, and the user pastes it into the other session.
+
+1. **Start (coder):** create `tasks/in-progress/<task-name>.md` from `.claude/templates/task.md`. Work for later goes to `tasks/todo/`.
+2. **Code (coder):** follow `.claude/rules/`.
+3. **Hand off (coder):** when the code is ready, end your turn with a **tester prompt**. Never start the tester yourself, not even as a subagent.
+4. **Test (tester):** test, review, log to `tasks/test-logs/<task-name>.md`, list fixes in `tasks/corrections/<task-name>.md`, then end your turn with a **coder prompt**.
+5. **Fix (coder):** fix every open HIGH and MEDIUM correction, then end your turn with the next tester prompt. Repeat 4 and 5 until PASS.
+6. **Close (coder):** on PASS, run `/task-done`. It writes the changelog, moves the files, compares branches and asks before deleting done files.
+
+**Tester prompt** (coder → tester): one `text` code block the user can paste as is:
+
+```text
+Tester: round <n> of task <task-name>.
+Task file: tasks/in-progress/<task-name>.md
+What changed: <files and areas since the last round, 1-3 lines>
+Fixed: <correction items fixed, or "first round">
+Check hard: <risky parts, or "nothing special">
+```
+
+**Coder prompt** (tester → coder): one `text` code block the user can paste as is:
+
+```text
+Coder: round <n> of task <task-name> is FAIL.
+Open: <HIGH count> HIGH, <MEDIUM count> MEDIUM, <LOW count> LOW in tasks/corrections/<task-name>.md
+Fix first: <the 1-3 most important items, one short line each>
+Log: tasks/test-logs/<task-name>.md
+Fix every open HIGH and MEDIUM item, then give me the next tester prompt.
+```
+
+On PASS the coder prompt is:
+
+```text
+Coder: round <n> of task <task-name> is PASS. Log: tasks/test-logs/<task-name>.md
+Run /task-done.
+```
 
 Tiny tasks (a question, a one-line config change) need no task file, but still end with the final report.
 
-## Final report (end of every task)
+## Final report (coder, end of every task)
+
+The tester never writes this. It ends every round with the coder prompt.
 
 - **Status:** Done ✅ or Not done ❌ (say what is left and why)
 - **Commit:** what to commit, or "nothing to commit". Multi-dev: "Run /compare-branches first."
