@@ -1,11 +1,10 @@
 import { Controller, Get } from '@nestjs/common';
-import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { ApiKeyAuth } from '../../shared/common/decorators/api-key-auth.decorator';
+import { ApiOkEnvelope } from '../../shared/common/decorators/api-common-responses.decorator';
+import { PingResponseDto } from './dto/ping-response.dto';
 
-/**
- * Server-to-server surface, authenticated by `X-API-Key` (not JWT). Reference
- * for wiring `@ApiKeyAuth()` on internal integrations, monitors, or webhooks.
- */
+/** Server-to-server routes, authenticated by `X-API-Key` instead of JWT. */
 @ApiTags('Internal')
 @Controller({ path: 'internal', version: '1' })
 export class InternalController {
@@ -14,8 +13,8 @@ export class InternalController {
   @ApiOperation({
     summary: 'Server-to-server connectivity check (API key auth)',
   })
-  @ApiOkResponse({ description: 'Service reachable' })
-  ping(): { status: string; timestamp: string } {
+  @ApiOkEnvelope(PingResponseDto, { description: 'Service reachable' })
+  ping(): PingResponseDto {
     return { status: 'ok', timestamp: new Date().toISOString() };
   }
 }

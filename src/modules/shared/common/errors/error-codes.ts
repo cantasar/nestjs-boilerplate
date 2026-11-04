@@ -1,30 +1,20 @@
 import { HttpStatus } from '@nestjs/common';
 import type { ErrorCodeDefinition } from './error-code.types';
-
-/**
- * Cross-cutting error codes owned by no single feature. The global
- * `HttpExceptionFilter` references `COMMON_VALIDATION_FAILED` / `COMMON_INTERNAL_ERROR`
- * directly when normalizing framework + unknown errors into the envelope.
- */
-export enum CommonErrorCode {
-  VALIDATION_FAILED = 'COMMON_VALIDATION_FAILED',
-  INTERNAL_ERROR = 'COMMON_INTERNAL_ERROR',
-  NOT_FOUND = 'COMMON_NOT_FOUND',
-  FORBIDDEN = 'COMMON_FORBIDDEN',
-  UNAUTHORIZED = 'COMMON_UNAUTHORIZED',
-  CONFLICT = 'COMMON_CONFLICT',
-  FORBIDDEN_ADMIN_ONLY = 'COMMON_FORBIDDEN_ADMIN_ONLY',
-  FORBIDDEN_MISSING_PERMISSION = 'COMMON_FORBIDDEN_MISSING_PERMISSION',
-  BUSINESS_RULE_VIOLATION = 'COMMON_BUSINESS_RULE_VIOLATION',
-  RATE_LIMITED = 'COMMON_RATE_LIMITED',
-  INVALID_STATE_TRANSITION = 'COMMON_INVALID_STATE_TRANSITION',
-}
+import { AuthErrorCode } from './enums/auth-error-code.enum';
+import { CommonErrorCode } from './enums/common-error-code.enum';
+import { UserErrorCode } from './enums/user-error-code.enum';
 
 export const COMMON_ERRORS: Record<CommonErrorCode, ErrorCodeDefinition> = {
   [CommonErrorCode.VALIDATION_FAILED]: {
     code: CommonErrorCode.VALIDATION_FAILED,
     httpStatus: HttpStatus.BAD_REQUEST,
     message: 'Validation failed',
+  },
+  // Other 4xx errors, like 405 or 415. The HTTP status stays as it was.
+  [CommonErrorCode.BAD_REQUEST]: {
+    code: CommonErrorCode.BAD_REQUEST,
+    httpStatus: HttpStatus.BAD_REQUEST,
+    message: 'Bad request',
   },
   [CommonErrorCode.INTERNAL_ERROR]: {
     code: CommonErrorCode.INTERNAL_ERROR,
@@ -51,19 +41,9 @@ export const COMMON_ERRORS: Record<CommonErrorCode, ErrorCodeDefinition> = {
     httpStatus: HttpStatus.CONFLICT,
     message: 'Conflict',
   },
-  [CommonErrorCode.FORBIDDEN_ADMIN_ONLY]: {
-    code: CommonErrorCode.FORBIDDEN_ADMIN_ONLY,
-    httpStatus: HttpStatus.FORBIDDEN,
-    message: 'Admin access required',
-  },
-  [CommonErrorCode.FORBIDDEN_MISSING_PERMISSION]: {
-    code: CommonErrorCode.FORBIDDEN_MISSING_PERMISSION,
-    httpStatus: HttpStatus.FORBIDDEN,
-    message: 'Insufficient permissions',
-  },
   [CommonErrorCode.BUSINESS_RULE_VIOLATION]: {
     code: CommonErrorCode.BUSINESS_RULE_VIOLATION,
-    httpStatus: HttpStatus.BAD_REQUEST,
+    httpStatus: HttpStatus.UNPROCESSABLE_ENTITY,
     message: 'Business rule violation',
   },
   [CommonErrorCode.RATE_LIMITED]: {
@@ -71,21 +51,17 @@ export const COMMON_ERRORS: Record<CommonErrorCode, ErrorCodeDefinition> = {
     httpStatus: HttpStatus.TOO_MANY_REQUESTS,
     message: 'Too many requests',
   },
+  [CommonErrorCode.PAYLOAD_TOO_LARGE]: {
+    code: CommonErrorCode.PAYLOAD_TOO_LARGE,
+    httpStatus: HttpStatus.PAYLOAD_TOO_LARGE,
+    message: 'Request body is too large',
+  },
   [CommonErrorCode.INVALID_STATE_TRANSITION]: {
     code: CommonErrorCode.INVALID_STATE_TRANSITION,
     httpStatus: HttpStatus.CONFLICT,
     message: 'Invalid state transition',
   },
 };
-
-/**
- * Placeholder auth error codes. Replace / extend with your real auth catalog;
- * shipped so the registry, Swagger schema and filter wiring have realistic data.
- */
-export enum AuthErrorCode {
-  INVALID_CREDENTIALS = 'AUTH_INVALID_CREDENTIALS',
-  EMAIL_ALREADY_IN_USE = 'AUTH_EMAIL_ALREADY_IN_USE',
-}
 
 export const AUTH_ERRORS: Record<AuthErrorCode, ErrorCodeDefinition> = {
   [AuthErrorCode.INVALID_CREDENTIALS]: {
@@ -98,128 +74,33 @@ export const AUTH_ERRORS: Record<AuthErrorCode, ErrorCodeDefinition> = {
     httpStatus: HttpStatus.CONFLICT,
     message: 'Email already in use',
   },
+  // One code for a wrong, expired or used code or session, so the answer never shows which one.
+  [AuthErrorCode.INVALID_CODE]: {
+    code: AuthErrorCode.INVALID_CODE,
+    httpStatus: HttpStatus.BAD_REQUEST,
+    message: 'Invalid or expired code',
+  },
+  [AuthErrorCode.WRONG_PASSWORD]: {
+    code: AuthErrorCode.WRONG_PASSWORD,
+    httpStatus: HttpStatus.BAD_REQUEST,
+    message: 'Current password is incorrect',
+  },
+  [AuthErrorCode.SOCIAL_ACCOUNT]: {
+    code: AuthErrorCode.SOCIAL_ACCOUNT,
+    httpStatus: HttpStatus.BAD_REQUEST,
+    message: 'This account signs in with Google or Apple and has no password',
+  },
+  [AuthErrorCode.PROVIDER_DISABLED]: {
+    code: AuthErrorCode.PROVIDER_DISABLED,
+    httpStatus: HttpStatus.BAD_REQUEST,
+    message: 'This sign-in method is not turned on',
+  },
 };
-
-/**
- * Placeholder user error codes. Replace / extend with your real user catalog.
- */
-export enum UserErrorCode {
-  NOT_FOUND = 'USER_NOT_FOUND',
-}
 
 export const USER_ERRORS: Record<UserErrorCode, ErrorCodeDefinition> = {
   [UserErrorCode.NOT_FOUND]: {
     code: UserErrorCode.NOT_FOUND,
     httpStatus: HttpStatus.NOT_FOUND,
     message: 'User not found',
-  },
-};
-
-/**
- * Object-storage error codes (filename validation). Owned by the platform
- * storage module; lives here so the registry stays the single catalog home.
- */
-export enum StorageErrorCode {
-  FILENAME_REQUIRED = 'STORAGE_FILENAME_REQUIRED',
-  FILENAME_INVALID = 'STORAGE_FILENAME_INVALID',
-}
-
-export const STORAGE_ERRORS: Record<StorageErrorCode, ErrorCodeDefinition> = {
-  [StorageErrorCode.FILENAME_REQUIRED]: {
-    code: StorageErrorCode.FILENAME_REQUIRED,
-    httpStatus: HttpStatus.BAD_REQUEST,
-    message: 'A filename is required',
-  },
-  [StorageErrorCode.FILENAME_INVALID]: {
-    code: StorageErrorCode.FILENAME_INVALID,
-    httpStatus: HttpStatus.BAD_REQUEST,
-    message: 'Filename is invalid',
-  },
-};
-
-/**
- * Media-asset error codes. Owned by the platform media module; lives here so the
- * registry stays the single catalog home.
- */
-export enum MediaErrorCode {
-  FILE_SIZE_EXCEEDS_LIMIT = 'MEDIA_FILE_SIZE_EXCEEDS_LIMIT',
-  ASSET_NOT_FOUND = 'MEDIA_ASSET_NOT_FOUND',
-}
-
-export const MEDIA_ERRORS: Record<MediaErrorCode, ErrorCodeDefinition> = {
-  [MediaErrorCode.FILE_SIZE_EXCEEDS_LIMIT]: {
-    code: MediaErrorCode.FILE_SIZE_EXCEEDS_LIMIT,
-    httpStatus: HttpStatus.BAD_REQUEST,
-    message: 'File size {fileSize} exceeds the limit of {maxFileSize} bytes',
-  },
-  [MediaErrorCode.ASSET_NOT_FOUND]: {
-    code: MediaErrorCode.ASSET_NOT_FOUND,
-    httpStatus: HttpStatus.NOT_FOUND,
-    message: 'Media asset {id} not found',
-  },
-};
-
-/**
- * Legal-document error codes. Owned by the user legal-documents/consent
- * features; lives here so the registry stays the single catalog home. The
- * public `:slug` route quotes the slug in its message, so it is a distinct code
- * from the generic NOT_FOUND (kept for the future admin lookups).
- */
-export enum LegalDocumentErrorCode {
-  NOT_FOUND = 'LEGAL_DOCUMENT_NOT_FOUND',
-  NOT_FOUND_BY_SLUG = 'LEGAL_DOCUMENT_NOT_FOUND_BY_SLUG',
-}
-
-export const LEGAL_DOCUMENTS_ERRORS: Record<
-  LegalDocumentErrorCode,
-  ErrorCodeDefinition
-> = {
-  [LegalDocumentErrorCode.NOT_FOUND]: {
-    code: LegalDocumentErrorCode.NOT_FOUND,
-    httpStatus: HttpStatus.NOT_FOUND,
-    message: 'Legal document not found',
-  },
-  [LegalDocumentErrorCode.NOT_FOUND_BY_SLUG]: {
-    code: LegalDocumentErrorCode.NOT_FOUND_BY_SLUG,
-    httpStatus: HttpStatus.NOT_FOUND,
-    message: "Legal document '{slug}' not found",
-  },
-};
-
-/**
- * Bug-report error codes. Owned by the admin bug-reports feature; lives here so
- * the registry stays the single catalog home.
- */
-export enum BugReportErrorCode {
-  NOT_FOUND = 'BUG_REPORT_NOT_FOUND',
-}
-
-export const BUG_REPORT_ERRORS: Record<
-  BugReportErrorCode,
-  ErrorCodeDefinition
-> = {
-  [BugReportErrorCode.NOT_FOUND]: {
-    code: BugReportErrorCode.NOT_FOUND,
-    httpStatus: HttpStatus.NOT_FOUND,
-    message: 'Bug report {id} not found',
-  },
-};
-
-/**
- * Notification inbox error codes. Owned by the platform notifications feature;
- * lives here so the registry stays the single catalog home.
- */
-export enum NotificationErrorCode {
-  NOT_FOUND = 'NOTIFICATION_NOT_FOUND',
-}
-
-export const NOTIFICATION_ERRORS: Record<
-  NotificationErrorCode,
-  ErrorCodeDefinition
-> = {
-  [NotificationErrorCode.NOT_FOUND]: {
-    code: NotificationErrorCode.NOT_FOUND,
-    httpStatus: HttpStatus.NOT_FOUND,
-    message: 'Notification not found',
   },
 };

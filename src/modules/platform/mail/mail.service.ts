@@ -1,7 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { SendMailClient } from 'zeptomail';
-import { getOtpEmailTemplate } from './templates/otp-template';
 import { getVerifyEmailTemplate } from './templates/verify-email-template';
 import { getPasswordResetTemplate } from './templates/password-reset-template';
 
@@ -21,13 +20,7 @@ export class MailService {
     this.client = url && token ? new SendMailClient({ url, token }) : null;
   }
 
-  async sendOtpEmail(to: string, otp: string): Promise<void> {
-    // void-ok
-    await this.sendHtml(to, 'Your OTP Code', getOtpEmailTemplate({ otp }));
-  }
-
   async sendVerificationEmail(to: string, code: string): Promise<void> {
-    // void-ok
     await this.sendHtml(
       to,
       'Verify your email',
@@ -36,7 +29,6 @@ export class MailService {
   }
 
   async sendPasswordResetEmail(to: string, code: string): Promise<void> {
-    // void-ok
     await this.sendHtml(
       to,
       'Reset your password',
@@ -44,17 +36,12 @@ export class MailService {
     );
   }
 
-  /**
-   * Single send path for every templated mail. No-ops with a warning when mail
-   * is unconfigured; throws on transport failure so the caller (the mail queue
-   * worker) can retry with backoff.
-   */
+  /** Throws on send failure so the mail queue worker can retry. */
   private async sendHtml(
     to: string,
     subject: string,
     htmlbody: string,
   ): Promise<void> {
-    // void-ok
     if (!this.client || !this.fromAddress || !this.fromName) {
       this.logger.warn(
         `Mail not configured (ZEPTOMAIL_*, MAIL_FROM_*). "${subject}" not sent.`,
@@ -68,10 +55,11 @@ export class MailService {
         subject,
         htmlbody,
       });
-      this.logger.log(`Mail sent to ${to}`);
+      // No address in the logs: it is personal data.
+      this.logger.log(`Mail sent: "${subject}"`);
     } catch (error) {
       this.logger.error(
-        `Failed to send "${subject}" to ${to}`,
+        `Failed to send "${subject}"`,
         error instanceof Error ? error.stack : undefined,
       );
       throw new Error('Failed to send email');

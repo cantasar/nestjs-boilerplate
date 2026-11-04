@@ -1,17 +1,12 @@
 import type { PaginationMetaDto } from '../dto/pagination-meta.dto';
 
 /**
- * Symbol marking a value as a paginated result. The response interceptor checks
- * for it (rather than duck-typing `data`/`meta`) so an ordinary object that
- * happens to have those keys is never mistaken for a paginated payload.
+ * Marks a value as a paginated result. The interceptor checks this symbol, not
+ * `data`/`meta` keys, so a plain object with those keys isn't mistaken for one.
  */
 export const PAGINATED_MARKER = Symbol('paginated');
 
-/**
- * A paginated list returned by a service/repository. The interceptor unwraps it
- * into the envelope as `{ success: true, data, meta }`. Build instances via
- * `paginate()` from `utils/pagination.util` so the marker is always attached.
- */
+/** A paginated list result; build it with `paginate()` so the marker is set. */
 export interface Paginated<T> {
   readonly [PAGINATED_MARKER]: true;
   readonly data: T[];

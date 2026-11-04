@@ -9,25 +9,17 @@ import { RedisService } from '../../../shared/redis/redis.service';
 import { MailService } from '../mail.service';
 import { MailJob } from './mail-queue.types';
 
-/**
- * Concurrency is read at class-decoration time (before DI), so it comes from
- * `process.env` rather than ConfigService.
- */
+/** Read from `process.env` because the decorator runs before DI. */
 const CONCURRENCY = Math.max(
   1,
   Number(process.env.QUEUE_CONCURRENCY ?? DEFAULT_QUEUE_CONCURRENCY),
 );
 
-// Idempotency window for OTP-bearing mail: the dedup key is claimed atomically
-// (SET NX) BEFORE the send so concurrent re-deliveries can't both send, then
-// released on failure so a genuine failure still retries.
+// Dedup window for OTP mail. The key is claimed before the send so duplicate
+// jobs can't both send, and released on failure so retries still work.
 const MAIL_DEDUP_TTL_SECONDS = 900;
 
-/**
- * Sends mail off the request path. `MailService` throws on send failure, so a
- * failed job is retried by BullMQ with backoff. Extend the switch when adding a
- * new `MailJob` template arm.
- */
+/** Sends queued mail. A failed send throws, so BullMQ retries it. */
 @Processor(QUEUE_NAMES.MAIL, { concurrency: CONCURRENCY })
 export class MailProcessor extends WorkerHost implements OnApplicationShutdown {
   private readonly logger = new Logger(MailProcessor.name);
@@ -39,7 +31,6 @@ export class MailProcessor extends WorkerHost implements OnApplicationShutdown {
     super();
   }
 
-  // void-ok: WorkerHost.process resolves with nothing for fire-and-forget jobs.
   async process(job: Job<MailJob>): Promise<void> {
     const data = job.data;
 
@@ -50,7 +41,7 @@ export class MailProcessor extends WorkerHost implements OnApplicationShutdown {
     );
     if (!claimed) {
       this.logger.debug(
-        `Mail ${data.template} to ${data.to} already sent; skipping duplicate`,
+        `Mail ${data.template} already sent; skipping duplicate`,
       );
       return;
     }
@@ -64,13 +55,9 @@ export class MailProcessor extends WorkerHost implements OnApplicationShutdown {
     }
   }
 
-  /** Dispatches a job to the matching `MailService` method by template arm. */
+  /** Add a case here for each new `MailJob` template. */
   private async send(data: MailJob): Promise<void> {
-    // void-ok
     switch (data.template) {
-      case 'otp':
-        await this.mail.sendOtpEmail(data.to, data.code);
-        return;
       case 'verify-email':
         await this.mail.sendVerificationEmail(data.to, data.code);
         return;
@@ -80,7 +67,6 @@ export class MailProcessor extends WorkerHost implements OnApplicationShutdown {
     }
   }
 
-  // void-ok: drain returns nothing once the worker has closed.
   async onApplicationShutdown(): Promise<void> {
     if (!this.worker.isRunning()) return;
     await this.worker.close();

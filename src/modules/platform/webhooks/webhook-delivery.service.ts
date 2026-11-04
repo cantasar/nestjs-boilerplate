@@ -14,11 +14,8 @@ import {
 } from './queue/webhook-delivery.types';
 
 /**
- * Producer half of signed webhook delivery: chunks a batch and enqueues one
- * BullMQ job per chunk. NO-OP when the endpoint's URL env var is unset —
- * webhook push is an optional integration, not a hard dependency (the
- * best-effort / no-op-when-unconfigured pattern). The processor does the
- * signed POST + retry; this service only fans out the work.
+ * Splits a batch into chunks and queues one job per chunk. Does nothing when
+ * the URL env var is unset, since webhooks are optional.
  */
 @Injectable()
 export class WebhookDeliveryService {
@@ -30,18 +27,13 @@ export class WebhookDeliveryService {
     private readonly config: ConfigService,
   ) {}
 
-  /**
-   * Split `items` into chunks and enqueue a delivery job for each. `meta`
-   * (e.g. a batch `generatedAt`) is repeated on every chunk's envelope so the
-   * receiver can version/dedupe the whole batch consistently.
-   */
+  /** `meta` goes on every chunk so the receiver can dedupe the batch. */
   async deliver(
     endpoint: WebhookEndpoint,
-    items: unknown[], // boundary: validated — caller-owned JSON-serializable payload
+    items: unknown[], // caller-owned JSON-serializable payload
     meta?: Record<string, string>,
     chunkSize: number = WEBHOOK_DELIVERY_CHUNK_SIZE,
   ): Promise<void> {
-    // void-ok: enqueue acknowledges by resolving once all chunks are added.
     const url = this.config.get<string>(endpoint.urlEnvVar);
     if (!url) {
       this.logger.debug(
@@ -50,8 +42,7 @@ export class WebhookDeliveryService {
       return;
     }
     if (items.length === 0) return;
-    // `meta` is spread into the envelope next to the bookkeeping fields —
-    // shadowing them would silently corrupt the receiver contract.
+    // `meta` is merged into the body, so it must not overwrite chunk fields.
     for (const reserved of WEBHOOK_RESERVED_META_KEYS) {
       if (meta && reserved in meta) {
         throw new Error(
@@ -76,7 +67,7 @@ export class WebhookDeliveryService {
   }
 
   private chunk(
-    items: unknown[], // boundary: validated — caller-owned payload passthrough
+    items: unknown[], // caller-owned payload passthrough
     size: number,
   ): unknown[][] {
     // size <= 0 would be an infinite loop (i += 0); NaN would emit one empty

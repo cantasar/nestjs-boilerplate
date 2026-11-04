@@ -3,7 +3,7 @@ import {
   Injectable,
   InternalServerErrorException,
 } from '@nestjs/common';
-import { eq } from 'drizzle-orm';
+import { and, eq, sql, type AnyColumn } from 'drizzle-orm';
 import { DATABASE_TOKENS } from '../database.tokens';
 import type { DrizzleDB } from '../database.types';
 import { users } from '../schema/user.schema';
@@ -35,17 +35,7 @@ export class UserRepository {
     return row;
   }
 
-  async findByPhone(phone: string): Promise<User | undefined> {
-    const [row] = await this.db
-      .select()
-      .from(users)
-      .where(eq(users.phone, phone))
-      .limit(1);
-    return row;
-  }
-
   async markEmailVerified(id: number): Promise<void> {
-    // void-ok
     await this.db
       .update(users)
       .set({ emailVerified: true })
@@ -53,7 +43,6 @@ export class UserRepository {
   }
 
   async updatePasswordById(id: number, passwordHash: string): Promise<void> {
-    // void-ok
     await this.db
       .update(users)
       .set({ password: passwordHash })
@@ -66,9 +55,11 @@ export class UserRepository {
   }
 
   async upsertOAuthUser(data: UpsertOAuthUser): Promise<User> {
-    // On email conflict, we update OAuth fields — this implicitly links an
-    // existing password-based account to the OAuth provider. Names are only
-    // updated when present (Apple only sends them on the very first sign-in).
+    // An unverified row may hold a password set by someone else, so it goes. One statement, so no race.
+    const keepIfVerified = (column: AnyColumn) =>
+      sql`case when ${users.emailVerified} then ${column} else null end`;
+    // A matching email links the existing account to this provider.
+    // Names and picture update only if sent; Apple sends names only on the first sign-in.
     const [user] = await this.db
       .insert(users)
       .values(data)
@@ -77,29 +68,41 @@ export class UserRepository {
         set: {
           provider: data.provider,
           providerId: data.providerId,
-          picture: data.picture,
           emailVerified: true,
+          password: keepIfVerified(users.password),
+          refreshToken: keepIfVerified(users.refreshToken),
+          ...(data.picture && { picture: data.picture }),
           ...(data.firstName && { firstName: data.firstName }),
           ...(data.lastName && { lastName: data.lastName }),
         },
       })
       .returning();
-
     if (!user) throw new InternalServerErrorException('Failed to create user');
-
     return user;
+  }
+
+  /** Swaps the stored refresh token hash only if it still matches, so one token never rotates twice. */
+  async rotateRefreshToken(
+    id: number,
+    currentHash: string,
+    nextHash: string,
+  ): Promise<boolean> {
+    const rows = await this.db
+      .update(users)
+      .set({ refreshToken: nextHash })
+      .where(and(eq(users.id, id), eq(users.refreshToken, currentHash)))
+      .returning({ id: users.id });
+    return rows.length > 0;
   }
 
   async updateRefreshToken(
     id: number,
     refreshToken: string | null,
   ): Promise<void> {
-    // void-ok
     await this.db.update(users).set({ refreshToken }).where(eq(users.id, id));
   }
 
   async updatePassword(email: string, passwordHash: string): Promise<void> {
-    // void-ok
     await this.db
       .update(users)
       .set({ password: passwordHash })

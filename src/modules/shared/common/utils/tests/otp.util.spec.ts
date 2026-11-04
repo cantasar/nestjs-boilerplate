@@ -1,4 +1,5 @@
-import { generateOtpCode, getOtpExpiration } from '../otp.util';
+import * as otpUtil from '../otp.util';
+import { generateOtpCode } from '../otp.util';
 
 describe('generateOtpCode', () => {
   it('returns a string of the requested length by default (6)', () => {
@@ -22,33 +23,23 @@ describe('generateOtpCode', () => {
     expect(seen.size).toBeGreaterThan(150);
   });
 
+  it('can start with a zero (the whole range is used)', () => {
+    let sawLeadingZero = false;
+    for (let i = 0; i < 2000 && !sawLeadingZero; i++) {
+      sawLeadingZero = generateOtpCode(2).startsWith('0');
+    }
+    expect(sawLeadingZero).toBe(true);
+  });
+
   it.each([0, -1, 11, 1.5, Number.NaN])(
     'rejects invalid length %p',
     (value) => {
       expect(() => generateOtpCode(value)).toThrow(RangeError);
     },
   );
-});
 
-describe('getOtpExpiration', () => {
-  it('returns a Date roughly minutes in the future', () => {
-    const before = Date.now();
-    const exp = getOtpExpiration(10);
-    const diff = exp.getTime() - before;
-    expect(diff).toBeGreaterThanOrEqual(10 * 60_000 - 50);
-    expect(diff).toBeLessThanOrEqual(10 * 60_000 + 50);
+  // L12: the unused expiry helper was removed.
+  it('exports only generateOtpCode', () => {
+    expect(Object.keys(otpUtil)).toEqual(['generateOtpCode']);
   });
-
-  it('defaults to 10 minutes when called without arguments', () => {
-    const before = Date.now();
-    const exp = getOtpExpiration();
-    expect(exp.getTime() - before).toBeGreaterThanOrEqual(10 * 60_000 - 50);
-  });
-
-  it.each([0, -1, Number.NaN, Number.POSITIVE_INFINITY])(
-    'rejects invalid minutes %p',
-    (value) => {
-      expect(() => getOtpExpiration(value)).toThrow(RangeError);
-    },
-  );
 });

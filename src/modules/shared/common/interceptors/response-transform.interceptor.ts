@@ -11,16 +11,8 @@ import { isPaginated } from '../types/paginated.type';
 import type { SuccessEnvelope } from '../types/response-envelope.type';
 
 /**
- * Wraps every successful response in the v1 envelope. Rules:
- *  - `@RawResponse()` handlers are returned verbatim (no envelope).
- *  - A `Paginated<T>` result is unwrapped to `{ success, data, meta }`.
- *  - `undefined` / `null` (incl. 204 handlers) → `{ success: true, data: null }`.
- *  - Everything else → `{ success: true, data }`.
- *
- * Payload SHAPE is never mutated here: presentation transforms (e.g. Date →
- * Unix seconds, dropping nulls) belong in the feature's mapper so the DTO type
- * and the wire format stay in agreement. The error envelope is the filter's
- * job; this interceptor only ever runs on the success path.
+ * Wraps each successful response in `{ success: true, data }`. Don't reshape
+ * data here; do it in the feature's mapper so DTO types match the response.
  */
 @Injectable()
 export class ResponseTransformInterceptor<T> implements NestInterceptor<

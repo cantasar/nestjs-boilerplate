@@ -1,0 +1,37 @@
+# Copy to terraform.tfvars and fill in. terraform.tfvars is gitignored
+# (never commit real values).
+
+# --- Required ---
+region            = "TODO-region"         # e.g. eu-central-1
+name              = "TODO-app-name"       # lowercase, used in every resource name
+github_repository = "TODO-owner/TODO-repo"
+# One stack per environment. Only this GitHub environment can deploy it.
+github_environment = "TODO-staging-or-production"
+
+# First apply: a public placeholder is fine. CI swaps it on every deploy.
+bootstrap_image = "public.ecr.aws/docker/library/node:26-alpine"
+
+# --- Rollout ---
+# Keep 0 for the first apply, run the Deploy workflow once, then set 1+ and apply again.
+desired_count = 0
+# cpu    = 256
+# memory = 512
+
+# --- GitHub OIDC ---
+# create_github_oidc_provider = false   # if the account already has it (the 2nd stack in one account)
+
+# cors_origin = "https://app.example.com"
+
+# --- HTTPS ---
+# certificate_arn         = "arn:aws:acm:<region>:<account>:certificate/<id>"
+# alb_deletion_protection = true
+
+# --- Data-plane choice ---
+# False/false = external DB and Redis (Neon, Upstash, ...). No RDS/ElastiCache cost.
+enable_rds         = false
+enable_elasticache = false
+# rds_instance_class    = "db.t4g.micro"
+# rds_multi_az          = false
+# elasticache_node_type = "cache.t4g.micro"
+
+# tags = { Team = "backend" }

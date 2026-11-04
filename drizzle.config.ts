@@ -1,5 +1,11 @@
-import 'dotenv/config';
 import { defineConfig } from 'drizzle-kit';
+
+// Loads .env when it exists; real env vars are used in CI and production.
+try {
+  process.loadEnvFile();
+} catch {
+  // No .env file.
+}
 
 function getConnectionUrl(): string {
   if (process.env.DATABASE_URL?.startsWith('postgres')) {
@@ -15,7 +21,7 @@ function getConnectionUrl(): string {
 
 export default defineConfig({
   out: './drizzle',
-  schema: './src/database/schema/*.schema.ts',
+  schema: './src/modules/shared/database/schema/index.ts',
   dialect: 'postgresql',
   dbCredentials: {
     url: getConnectionUrl(),
