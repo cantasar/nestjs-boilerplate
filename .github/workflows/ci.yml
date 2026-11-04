@@ -71,7 +71,4 @@ jobs:
           node-version-file: .nvmrc
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      # Ubuntu runners leave TMPDIR unset, and the guard tests expect it set like on a dev machine.
       - run: pnpm test:e2e
-        env:
-          TMPDIR: ${{ runner.temp }}
