@@ -71,7 +71,7 @@ jobs:
       - name: Build and push image
         run: |
           IMAGE="${REGION}-docker.pkg.dev/${PROJECT_ID}/${ARTIFACT_REPO}/api:${GITHUB_SHA}"
-          docker build -t "$IMAGE" .
+          docker build --pull -t "$IMAGE" .
           docker push "$IMAGE"
           echo "IMAGE=$IMAGE" >> "$GITHUB_ENV"
 
@@ -126,7 +126,7 @@ jobs:
           if aws ecr describe-images --repository-name "${ECR_REPOSITORY_URL#*/}" --image-ids imageTag="$TAG" > /dev/null 2>&1; then
             echo "Image $IMAGE exists, skipping build"
           else
-            docker build -t "$IMAGE" .
+            docker build --pull -t "$IMAGE" .
             docker push "$IMAGE"
           fi
           echo "IMAGE=$IMAGE" >> "$GITHUB_ENV"
