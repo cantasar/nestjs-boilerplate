@@ -6,7 +6,7 @@ A small, production-ready NestJS API to start new backends from. It ships auth, 
 
 ## Quick start
 
-Needs Node 26 (`nvm use`), pnpm (`npm install -g pnpm`; it switches to the version in `package.json` by itself) and Docker.
+Needs Node 26.12.1 or newer (`nvm use` picks the version in `.nvmrc`; older 26.x has known security bugs, fixed in the 26.12.1 security release), pnpm (`npm install -g pnpm`; it switches to the version in `package.json` by itself) and Docker.
 
 ```bash
 pnpm install
