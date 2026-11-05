@@ -59,7 +59,10 @@ const mcp = (tool: string, input: Record<string, string>, who = MAIN) => ({
   tool_input: input,
 });
 
-/** `env` overrides the guard's environment; an undefined value removes the variable. */
+/**
+ * `env` overrides the guard's environment; an undefined value removes the variable.
+ * TMPDIR is always set, because Linux and CI often leave it unset and `$TMPDIR/x` is then blocked on purpose.
+ */
 function outcome(
   fixture: Fixture | string,
   projectDir = ROOT,
@@ -67,7 +70,12 @@ function outcome(
 ): string {
   const result = spawnSync(process.execPath, [GUARD], {
     input: typeof fixture === 'string' ? fixture : JSON.stringify(fixture),
-    env: { ...process.env, CLAUDE_PROJECT_DIR: projectDir, ...env },
+    env: {
+      ...process.env,
+      TMPDIR: tmpdir(),
+      CLAUDE_PROJECT_DIR: projectDir,
+      ...env,
+    },
     encoding: 'utf8',
   });
   if (result.status === 2 && result.stderr.startsWith('Blocked by')) {
@@ -95,6 +103,26 @@ const bashCases = (commands: string[], expected: Expect, who: Who): Case[] =>
     bash(command, who),
     expected,
   ]);
+
+// Half the 10 s hook timeout in .claude/settings.json. A GitHub runner runs the path-limit cases about 2.5x slower than a laptop.
+const PATH_LIMIT_MS = 5000;
+
+/** The label when the guard crashes, hangs or needs PATH_LIMIT_MS or more for one Bash call. A crash or a timeout lets the call through. */
+function slowOrCrashed(label: string, command: string): string[] {
+  const started = Date.now();
+  const result = spawnSync(process.execPath, [GUARD], {
+    input: JSON.stringify(bash(command)),
+    env: { ...process.env, CLAUDE_PROJECT_DIR: ROOT },
+    encoding: 'utf8',
+    timeout: 10_000,
+  });
+  const ms = Date.now() - started;
+  const ended =
+    result.signal === null && (result.status === 0 || result.status === 2);
+  return ended && ms < PATH_LIMIT_MS
+    ? []
+    : [`${label}: exit ${result.status} ${result.signal ?? ''} in ${ms}ms`];
+}
 
 describe('guard hook: env files', () => {
   it('blocks env files in the file tools, also for the tester', () => {
@@ -4862,20 +4890,13 @@ describe('guard hook: guard-bypasses, round 3', () => {
 
   it('stays fast with many cd targets', () => {
     const files = Array.from({ length: 400 }, (_, i) => `f${i}`).join(' ');
-    const slow = (command: string) => {
-      const started = Date.now();
-      const result = spawnSync(process.execPath, [GUARD], {
-        input: JSON.stringify(bash(command)),
-        env: { ...process.env, CLAUDE_PROJECT_DIR: ROOT },
-        encoding: 'utf8',
-        timeout: 10_000,
-      });
-      const ms = Date.now() - started;
-      return result.signal === null && ms < 3000 ? [] : [`${ms}ms`];
-    };
     expect([
-      ...slow(`${'cd src; '.repeat(40)}ls ${files}`),
-      ...slow(
+      ...slowOrCrashed(
+        '40 cd src, 400 words',
+        `${'cd src; '.repeat(40)}ls ${files}`,
+      ),
+      ...slowOrCrashed(
+        '300 cd /tmp, 300 tar -C',
         `${'cd /tmp; '.repeat(300)}tar ${'-C /tmp '.repeat(300)}${files}`,
       ),
     ]).toEqual([]);
@@ -4984,21 +5005,16 @@ describe('guard hook: guard-bypasses, round 4', () => {
   it('stays under the hook timeout at the cd and path limits', () => {
     const files = Array.from({ length: 399 }, (_, i) => `f${i}`).join(' ');
     const deep = Array.from({ length: 20 }, () => 'a').join('/');
-    const slow = (command: string) => {
-      const started = Date.now();
-      const result = spawnSync(process.execPath, [GUARD], {
-        input: JSON.stringify(bash(command)),
-        env: { ...process.env, CLAUDE_PROJECT_DIR: ROOT },
-        encoding: 'utf8',
-        timeout: 10_000,
-      });
-      const ms = Date.now() - started;
-      return result.signal === null && ms < 3000 ? [] : [`${ms}ms`];
-    };
     // 49 cd targets and 399 words stay just under both limits.
     expect([
-      ...slow(`${'cd src; '.repeat(49)}ls ${files}`),
-      ...slow(`${`cd ${deep}; `.repeat(49)}ls ${files}`),
+      ...slowOrCrashed(
+        '49 cd src, 399 words',
+        `${'cd src; '.repeat(49)}ls ${files}`,
+      ),
+      ...slowOrCrashed(
+        '49 cd a/.../a (20 deep), 399 words',
+        `${`cd ${deep}; `.repeat(49)}ls ${files}`,
+      ),
     ]).toEqual([]);
   }, 30_000);
 
@@ -5297,4 +5313,200 @@ describe('guard hook: guard-shell-options, round 1', () => {
       ),
     ]).toEqual([]);
   }, 60_000);
+});
+
+// ci-e2e-fix, round 1: words with many missing folders cost one file system walk per folder, per cd target.
+describe('guard hook: ci-e2e-fix, round 1', () => {
+  const deepWords = (count: number, depth: number) =>
+    Array.from(
+      { length: count },
+      (_, i) => `w${i}/${'x/'.repeat(depth)}f`,
+    ).join(' ');
+
+  it('ends in time on deep missing paths inside the cd and path limits', () => {
+    // On an M4 these took 6.7 s, 18 s and 32 s (heap out of memory) in this round.
+    expect([
+      ...slowOrCrashed(
+        '5 cd src, 1000 words 40 deep',
+        `${'cd src; '.repeat(5)}ls ${deepWords(1000, 40)}`,
+      ),
+      ...slowOrCrashed(
+        '49 cd src, 399 words 30 deep',
+        `${'cd src; '.repeat(49)}ls ${deepWords(399, 30)}`,
+      ),
+      ...slowOrCrashed(
+        '49 cd src, 399 words 100 deep',
+        `${'cd src; '.repeat(49)}ls ${deepWords(399, 100)}`,
+      ),
+    ]).toEqual([]);
+  }, 45_000);
+});
+
+// ci-e2e-fix, round 2: the faster path walk must still follow links the way the OS does.
+describe('guard hook: ci-e2e-fix, round 2', () => {
+  let project = '';
+  const at = (...parts: string[]) => join(project, ...parts);
+  const link = (target: string, name: string) =>
+    symlinkSync(target, at('test', name));
+  /** Links `<prefix>0` → `<prefix>1` → … → `end`, all in test/. macOS follows up to 32 links, Linux up to 40. */
+  const chain = (prefix: string, count: number, end: string) => {
+    for (let i = 0; i < count; i += 1)
+      link(i === count - 1 ? end : `${prefix}${i + 1}`, `${prefix}${i}`);
+  };
+  const testerWrite = (path: string): Fixture => ({
+    ...TESTER_SESSION,
+    tool_name: 'Write',
+    tool_input: { file_path: at(path), content: 'x' },
+  });
+  const wrongInProject = (cases: Case[]): string[] =>
+    cases.flatMap(([label, fixture, expected]) => {
+      const actual = outcome(fixture, project);
+      return actual === expected
+        ? []
+        : [`${label}: expected ${expected}, got ${actual}`];
+    });
+
+  // A temp folder outside the project, where the tester may write.
+  let outside = '';
+
+  beforeAll(() => {
+    project = mkdtempSync(join(tmpdir(), 'guard-walk-'));
+    outside = mkdtempSync(join(tmpdir(), 'guard-walk-tmp-'));
+    for (let i = 0; i < 25; i += 1)
+      symlinkSync(i === 24 ? at('src') : `c${i + 1}`, join(outside, `c${i}`));
+    mkdirSync(at('src', 'modules'), { recursive: true });
+    mkdirSync(at('test', 'ok'), { recursive: true });
+    mkdirSync(at('home', '.aws'), { recursive: true });
+    writeFileSync(at('src', 'main.ts'), 'x');
+    writeFileSync(at('home', '.aws', 'credentials'), 'x');
+    writeFileSync(at('package.json'), '{}');
+    chain('d20_', 20, '../src');
+    chain('d21_', 21, '../src');
+    chain('d30_', 30, '../src');
+    chain('f21_', 21, '../src/main.ts');
+    chain('s21_', 21, '../home/.aws');
+    chain('t2_', 2, 'ok');
+    chain('ok21_', 21, 'ok');
+    chain('dang25_', 25, '../src/new.ts');
+    link('../src', 'mid');
+    link('loop-b', 'loop-a');
+    link('loop-a', 'loop-b');
+    link(at('src', 'modules'), 'sub');
+    link('sub/../main.ts', 'up-file');
+    link('sub/..', 'up-dir');
+    link('sub/../new.ts', 'up-new');
+  });
+  afterAll(() => {
+    rmSync(project, { recursive: true, force: true });
+    rmSync(outside, { recursive: true, force: true });
+  });
+
+  it('follows link chains as long as the OS does', () => {
+    // The round 1 guard blocked all of these: realpathSync follows chains up to the OS limit.
+    expect(
+      wrongInProject([
+        ['20 links to src/', testerWrite('test/d20_0/new.ts'), 'block'],
+        ['21 links to src/', testerWrite('test/d21_0/new.ts'), 'block'],
+        ['21 links to src/main.ts', testerWrite('test/d21_0/main.ts'), 'block'],
+        ['30 links to src/', testerWrite('test/d30_0/new.ts'), 'block'],
+        ['21 links to a src file', testerWrite('test/f21_0'), 'block'],
+        [
+          'Bash redirect through 21 links',
+          bash(`echo x > ${at('test/d21_0/new.ts')}`, TESTER_SESSION),
+          'block',
+        ],
+        [
+          'cat through 21 links to .aws',
+          bash(`cat ${at('test/s21_0/credentials')}`),
+          'block',
+        ],
+        ['2 links to test/ok', testerWrite('test/t2_0/x.spec.ts'), 'allow'],
+        // Round 3: a long chain that ends in test/ is fine, a dangling one over the limit fails closed.
+        ['21 links to test/ok', testerWrite('test/ok21_0/x.ts'), 'allow'],
+        [
+          '25 dangling links to src/new.ts',
+          testerWrite('test/dang25_0'),
+          'block',
+        ],
+        [
+          'temp write through 25 links into src/',
+          {
+            ...TESTER_SESSION,
+            tool_name: 'Write',
+            tool_input: {
+              file_path: join(outside, 'c0', 'x.ts'),
+              content: 'x',
+            },
+          },
+          'block',
+        ],
+      ]),
+    ).toEqual([]);
+  });
+
+  it('checks a link in the middle of a deep missing path', () => {
+    expect(
+      wrongInProject([
+        [
+          'deep new file under a link to src/',
+          testerWrite('test/mid/a/b/c/d.ts'),
+          'block',
+        ],
+        [
+          'Bash redirect under a link to src/',
+          bash(`echo x > ${at('test/mid/a/b/c.ts')}`, TESTER_SESSION),
+          'block',
+        ],
+        [
+          'same missing folders in test/ first, then through the link',
+          bash(
+            `echo x > ${at('test/ok/a/b/x.spec.ts')}; echo y > ${at('test/mid/a/b/x.ts')}`,
+            TESTER_SESSION,
+          ),
+          'block',
+        ],
+        [
+          'a spec under a link to src/ is still a spec',
+          testerWrite('test/mid/a/x.spec.ts'),
+          'allow',
+        ],
+      ]),
+    ).toEqual([]);
+  });
+
+  it('ends on a link loop', () => {
+    // The OS fails on a loop, so allow and block are both fine. A crash is not.
+    expect(['allow', 'block']).toContain(
+      outcome(testerWrite('test/loop-a/x.ts'), project),
+    );
+  });
+
+  // The OS applies `..` after the real folder of `sub` (src/modules), so these write into src/.
+  it('applies `..` in a link target to the real folder, like the OS', () => {
+    expect(
+      wrongInProject([
+        [
+          'sub/../main.ts with sub -> src/modules',
+          testerWrite('test/up-file'),
+          'block',
+        ],
+        ['sub/.. as a folder', testerWrite('test/up-dir/new.ts'), 'block'],
+      ]),
+    ).toEqual([]);
+  });
+
+  // LOW, also in the round 1 guard: `resolve()` still reads `..` as text here. See tasks/todo/guard-dotdot-after-link.md.
+  // Un-skip when the fix lands.
+  it.skip('applies `..` after a link in a dangling target or a typed path', () => {
+    expect(
+      wrongInProject([
+        ['dangling sub/../new.ts', testerWrite('test/up-new'), 'block'],
+        [
+          'typed test/sub/../main.ts',
+          bash(`echo x > ${at('test', 'sub')}/../main.ts`, TESTER_SESSION),
+          'block',
+        ],
+      ]),
+    ).toEqual([]);
+  });
 });

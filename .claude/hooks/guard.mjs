@@ -1,7 +1,13 @@
 #!/usr/bin/env node
 // PreToolUse guard for the team rules: env and secret files, commit/push/deploy, tests by the tester only, and tester writes.
 // Exit code 2 blocks the call; it stops mistakes and is not a sandbox.
-import { readdirSync, readFileSync, readlinkSync, realpathSync } from 'node:fs';
+import {
+  lstatSync,
+  readdirSync,
+  readFileSync,
+  readlinkSync,
+  realpathSync,
+} from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
 import {
   basename,
@@ -10,6 +16,7 @@ import {
   join,
   relative,
   resolve,
+  sep,
 } from 'node:path';
 
 const FILE_TOOLS = new Set([
@@ -427,9 +434,13 @@ const cdTargets = [];
 const globbedWords = new Set();
 // Caches, so long commands stay fast. Above the limits the guard fails closed.
 const realPaths = new Map();
+// Cached paths that do not exist. Nothing below them is checked on disk.
+const missingPaths = new Set();
 const secretPaths = new Map();
 const MAX_CD_TARGETS = 50;
 const MAX_PATH_CHECKS = 20_000;
+// Time since the process started. Well under the 10 s hook timeout, also on slow CI runners.
+const MAX_CHECK_MS = 3000;
 let pathChecks = 0;
 // Shell option readings can grow fast (`bash -c -o bash -c -o ...`), so one tool call gets a fixed budget.
 const MAX_SHELL_STRINGS = 200;
@@ -582,6 +593,7 @@ function checkCommand(command) {
           pathChecks += 1;
           if (pathChecks > MAX_PATH_CHECKS)
             block('This command names too many paths to check.');
+          checkTime();
           if (
             isSecretPath(
               resolve(dir, expandPath(path)),
@@ -1977,51 +1989,94 @@ function isTempPath(filePath) {
 
 /** Resolves symlinks in the part of the path that exists, so a link from test/ into src/ is caught. Cached. */
 function realPathOf(path) {
+  checkTime();
   // No system opens a path this long (Linux allows 4,096 bytes), so it is returned as it is. SECRET_PATH still checks its text.
   if (path.length > 4096) return path;
-  if (!realPaths.has(path)) realPaths.set(path, followLinks(path, 0));
+  if (!realPaths.has(path)) {
+    const [real, missing] = followLinks(path, 0);
+    realPaths.set(path, real);
+    if (missing) missingPaths.add(path);
+  }
   return realPaths.get(path);
 }
 
 /**
- * Walks up (in a loop, so deep paths cannot overflow the stack) to the first cached or existing folder,
- * then caches each missing part on the way back down. So each new path costs only a few file system calls.
+ * Walks up by text to the nearest cached folder, then checks each part below it on disk and returns [real path, missing].
+ * Nothing exists below a missing part, so the rest is added as text with no more file system calls.
  */
 function followLinks(path, depth) {
-  const missing = [];
+  const parts = [];
   let current = path;
-  let real;
-  for (;;) {
-    if (current !== path && realPaths.has(current)) {
-      real = realPaths.get(current);
-      break;
-    }
-    try {
-      real = realpathSync(current);
-      break;
-    } catch {
-      // A dangling symlink still points somewhere: a write through it creates the target.
-      const link = readLink(current);
-      if (link !== null && depth < MAX_NESTING) {
-        return followLinks(
-          join(
-            resolve(dirname(current), link),
-            ...missing.map((part) => basename(part)).reverse(),
-          ),
-          depth + 1,
-        );
+  while (!realPaths.has(current)) {
+    const parent = dirname(current);
+    if (parent === current) break;
+    parts.push(basename(current));
+    current = parent;
+  }
+  let real = realPaths.get(current) ?? current;
+  let missing = missingPaths.has(current);
+  let known = current;
+  parts.reverse();
+  for (let i = 0; i < parts.length; i += 1) {
+    const wasMissing = missing;
+    known = childPath(known, parts[i]);
+    real = childPath(real, parts[i]);
+    if (!missing) {
+      const stat = lstatOf(real);
+      if (stat === null) missing = true;
+      else if (stat.isSymbolicLink()) {
+        // The OS resolves the whole chain, long chains and `..` after a link included.
+        const target = nativeRealPath(real);
+        if (target !== null) real = target;
+        else {
+          // A dangling symlink still points somewhere: a write through it creates the target.
+          const link = readLink(real);
+          if (link === null) missing = true;
+          else if (depth >= MAX_NESTING)
+            block('This path has too many links to check.');
+          else
+            [real, missing] = followLinks(
+              resolve(dirname(real), link),
+              depth + 1,
+            );
+        }
       }
-      const parent = dirname(current);
-      if (parent === current) return path;
-      missing.push(current);
-      current = parent;
+    }
+    // Cache what exists, the first missing part and the parent folder, so a sibling path needs one step.
+    if (!wasMissing || i === parts.length - 2) {
+      realPaths.set(known, real);
+      if (missing) missingPaths.add(known);
     }
   }
-  for (const part of missing.reverse()) {
-    real = join(real, basename(part));
-    realPaths.set(part, real);
+  return [real, missing];
+}
+
+/** Joins without normalizing the whole path again, which is slow on deep paths. */
+function childPath(dir, name) {
+  return dir.endsWith(sep) ? dir + name : dir + sep + name;
+}
+
+function nativeRealPath(path) {
+  try {
+    return realpathSync.native(path);
+  } catch {
+    return null;
   }
-  return real;
+}
+
+function lstatOf(path) {
+  try {
+    return lstatSync(path, { throwIfNoEntry: false }) ?? null;
+  } catch {
+    // ENOTDIR and similar: nothing can exist there.
+    return null;
+  }
+}
+
+/** Fails closed before the hook timeout (10 s) kills the guard, because a killed hook lets the call through. */
+function checkTime() {
+  if (performance.now() > MAX_CHECK_MS)
+    block('This command takes too long to check.');
 }
 
 function readLink(path) {
