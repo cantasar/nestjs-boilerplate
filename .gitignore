@@ -38,12 +38,20 @@ lerna-debug.log*
 !.vscode/launch.json
 !.vscode/extensions.json
 
-# dotenv environment variable files
-.env
-.env.development.local
-.env.test.local
-.env.production.local
-.env.local
+# Env files: ignore all of them except the template
+.env*
+!.env.example
+
+# Team MD workflow, local only (see CLAUDE.md). /internal is committed.
+# The template tracks empty docs/ and communication/ folders. In a new project run once:
+#   git rm -r --cached docs communication
+/docs/
+/tasks/
+/communication/
+
+# Claude Code personal files
+.claude/settings.local.json
+CLAUDE.local.md
 
 # temp directory
 .temp

@@ -1,16 +1,23 @@
 packages:
   - '.'
 
-# pnpm 11 default-deny build policy: a dependency's install lifecycle scripts run
-# only when allowed here. The native addons (bcrypt, esbuild, sentry profiler,
-# unrs-resolver, msgpackr-extract) MUST build to work at runtime; @nestjs/core
-# and @scarf/scarf are funding/telemetry pings, allowed so no build is "ignored"
-# (which would fail the install under the default strictDepBuilds).
+# Do not install package versions younger than 3 days (protects against fresh malware releases).
+minimumReleaseAge: 4320
+
+# Refuse to install on a Node outside engines.node (blocks Node versions with known security bugs).
+engineStrict: true
+
+# Install scripts run only for packages listed here (pnpm blocks the rest).
 allowBuilds:
-  '@nestjs/core': true
-  '@scarf/scarf': true
-  '@sentry/node-cpu-profiler': true
+  '@parcel/watcher': false
+  '@scarf/scarf': false
   bcrypt: true
   esbuild: true
   msgpackr-extract: true
   unrs-resolver: true
+
+# @nest-lab/throttler-storage-redis works with Nest 12 but its peer range still says 11.
+peerDependencyRules:
+  allowedVersions:
+    '@nest-lab/throttler-storage-redis>@nestjs/common': '12'
+    '@nest-lab/throttler-storage-redis>@nestjs/core': '12'

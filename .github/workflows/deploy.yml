@@ -1,0 +1,155 @@
+# Ships a new app version. Manual only; Terraform (infra/) owns the rest of the infra.
+# Off by default: a fresh copy of the scaffold never deploys. To turn it on, set the
+# REPOSITORY variable DEPLOY_TARGET to "gcp" or "aws" (Settings → Secrets and variables → Actions).
+# Per-environment settings live in GitHub environments (staging, production). See infra/<cloud>/README.md.
+
+name: Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+          - staging
+          - production
+
+concurrency:
+  group: deploy-${{ inputs.environment }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  # Job-level `if` only sees repository variables, so DEPLOY_TARGET must be one.
+  disabled:
+    if: vars.DEPLOY_TARGET != 'gcp' && vars.DEPLOY_TARGET != 'aws'
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          echo "::error::Deploy is off. Set the repository variable DEPLOY_TARGET to gcp or aws."
+          exit 1
+
+  gcp:
+    if: vars.DEPLOY_TARGET == 'gcp'
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+      REGION: ${{ vars.GCP_REGION }}
+      SERVICE_NAME: ${{ vars.GCP_SERVICE_NAME }}
+      ARTIFACT_REPO: ${{ vars.GCP_ARTIFACT_REPO }}
+    steps:
+      - name: Check settings
+        run: |
+          for v in PROJECT_ID REGION SERVICE_NAME ARTIFACT_REPO; do
+            [ -n "${!v}" ] || { echo "::error::Missing environment variable GCP_$v"; exit 1; }
+          done
+
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      # Safer option: Workload Identity Federation instead of a JSON key.
+      - name: Auth to Google Cloud
+        uses: google-github-actions/auth@v3
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v3
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker "${REGION}-docker.pkg.dev" --quiet
+
+      - name: Build and push image
+        run: |
+          IMAGE="${REGION}-docker.pkg.dev/${PROJECT_ID}/${ARTIFACT_REPO}/api:${GITHUB_SHA}"
+          docker build --pull -t "$IMAGE" .
+          docker push "$IMAGE"
+          echo "IMAGE=$IMAGE" >> "$GITHUB_ENV"
+
+      - name: Deploy to Cloud Run
+        run: |
+          gcloud run deploy "$SERVICE_NAME" \
+            --image "$IMAGE" \
+            --project "$PROJECT_ID" \
+            --region "$REGION" \
+            --platform managed \
+            --allow-unauthenticated
+
+  aws:
+    if: vars.DEPLOY_TARGET == 'aws'
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      AWS_REGION: ${{ vars.AWS_REGION }}
+      DEPLOY_ROLE_ARN: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+      ECR_REPOSITORY_URL: ${{ vars.AWS_ECR_REPOSITORY_URL }}
+      ECS_CLUSTER: ${{ vars.AWS_ECS_CLUSTER }}
+      ECS_SERVICE: ${{ vars.AWS_ECS_SERVICE }}
+      CONTAINER_NAME: ${{ vars.AWS_ECS_CONTAINER_NAME || 'api' }}
+    steps:
+      - name: Check settings
+        run: |
+          for v in AWS_REGION DEPLOY_ROLE_ARN ECR_REPOSITORY_URL ECS_CLUSTER ECS_SERVICE; do
+            [ -n "${!v}" ] || { echo "::error::Missing environment variable for $v (see infra/aws/README.md)"; exit 1; }
+          done
+
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      # OIDC: no stored AWS keys. Each env's role trusts only that one GitHub environment.
+      - name: Auth to AWS
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Log in to ECR
+        run: aws ecr get-login-password | docker login --username AWS --password-stdin "${ECR_REPOSITORY_URL%%/*}"
+
+      # Tags are immutable, so an image already built for this commit is reused.
+      - name: Build and push image
+        run: |
+          TAG="$GITHUB_SHA"
+          IMAGE="${ECR_REPOSITORY_URL}:${TAG}"
+          if aws ecr describe-images --repository-name "${ECR_REPOSITORY_URL#*/}" --image-ids imageTag="$TAG" > /dev/null 2>&1; then
+            echo "Image $IMAGE exists, skipping build"
+          else
+            docker build --pull -t "$IMAGE" .
+            docker push "$IMAGE"
+          fi
+          echo "IMAGE=$IMAGE" >> "$GITHUB_ENV"
+
+      # Copy the latest task definition (Terraform keeps env and secrets there), swap the image, roll the service.
+      - name: Deploy to ECS
+        run: |
+          FAMILY=$(aws ecs describe-services --cluster "$ECS_CLUSTER" --services "$ECS_SERVICE" \
+            --query 'services[0].taskDefinition' --output text | sed 's#.*/##; s#:[0-9]*$##')
+          aws ecs describe-task-definition --task-definition "$FAMILY" --query taskDefinition > task-def.json
+          jq -e --arg NAME "$CONTAINER_NAME" 'any(.containerDefinitions[]; .name == $NAME)' task-def.json > /dev/null \
+            || { echo "::error::No container named $CONTAINER_NAME in $FAMILY"; exit 1; }
+          jq --arg IMAGE "$IMAGE" --arg NAME "$CONTAINER_NAME" '
+            .containerDefinitions |= map(if .name == $NAME then .image = $IMAGE else . end)
+            | del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)
+          ' task-def.json > new-task-def.json
+          NEW_ARN=$(aws ecs register-task-definition --cli-input-json file://new-task-def.json \
+            --query taskDefinition.taskDefinitionArn --output text)
+          aws ecs update-service --cluster "$ECS_CLUSTER" --service "$ECS_SERVICE" --task-definition "$NEW_ARN" > /dev/null
+          echo "Waiting for $ECS_SERVICE to be stable on $NEW_ARN"
+          aws ecs wait services-stable --cluster "$ECS_CLUSTER" --services "$ECS_SERVICE"
+          # The circuit breaker rolls back a failed rollout and the wait still passes, so check what is live.
+          aws ecs describe-services --cluster "$ECS_CLUSTER" --services "$ECS_SERVICE" --output json \
+            | jq -e --arg ARN "$NEW_ARN" \
+              '.services[0].deployments[] | select(.status == "PRIMARY") | .taskDefinition == $ARN and .rolloutState == "COMPLETED"' > /dev/null \
+            || { echo "::error::Deploy failed: ECS rolled back $ECS_SERVICE instead of running $NEW_ARN. Check the service events and logs."; exit 1; }

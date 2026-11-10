@@ -1,4 +1,4 @@
-# Terraform state — kept in GCS backend, never local
+# Terraform state — kept in a remote backend (GCS or S3), never local
 *.tfstate
 *.tfstate.*
 *.tfstate.backup

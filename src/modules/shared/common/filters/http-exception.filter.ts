@@ -6,23 +6,12 @@ import {
   HttpStatus,
   Logger,
 } from '@nestjs/common';
-import * as Sentry from '@sentry/nestjs';
 import type { Request, Response } from 'express';
 import { DomainException } from '../errors/domain.exception';
-import { CommonErrorCode } from '../errors/error-codes';
+import { CommonErrorCode } from '../errors/enums/common-error-code.enum';
 import { resolveErrorDefinition } from '../errors/error-registry';
 
-/**
- * The single place errors are serialized into the failure envelope
- * (`{ success: false, error: { code, message, details? } }`). Three cases:
- *
- *  1. `DomainException` — trusted `code` + status are read straight off the
- *     exception (already resolved from the registry).
- *  2. Framework `HttpException` (incl. `ValidationPipe`) — mapped to a generic
- *     registry code by HTTP status; 400s carry the per-field messages as `details`.
- *  3. Anything else — a generic `500` (`COMMON_INTERNAL_ERROR`). The internal
- *     message / stack is logged server-side and never leaked to the client.
- */
+/** The only place that writes the error envelope. Unknown errors become a 500 and never leak internals. */
 @Catch()
 export class HttpExceptionFilter implements ExceptionFilter {
   private readonly logger = new Logger(HttpExceptionFilter.name);
@@ -51,7 +40,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
     message: string;
     details?: string[];
   } {
-    // Case 1: domain error — status + code already resolved from the registry.
+    // Domain error: status and code already come from the registry.
     if (exception instanceof DomainException) {
       const payload = exception.getResponse() as {
         code: string;
@@ -66,7 +55,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
       };
     }
 
-    // Case 2: framework HttpException (ValidationPipe, guards, 404, ...).
+    // Framework error (ValidationPipe, guards, 404, ...).
     if (exception instanceof HttpException) {
       const status = exception.getStatus();
       const code = this.codeForStatus(status);
@@ -80,7 +69,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
       };
     }
 
-    // Case 3: unknown / unexpected — generic 500, no internals leaked.
+    // Unknown error: generic 500.
     const definition = resolveErrorDefinition(CommonErrorCode.INTERNAL_ERROR);
     return {
       status: definition.httpStatus,
@@ -101,17 +90,22 @@ export class HttpExceptionFilter implements ExceptionFilter {
         return CommonErrorCode.NOT_FOUND;
       case HttpStatus.CONFLICT:
         return CommonErrorCode.CONFLICT;
+      case HttpStatus.PAYLOAD_TOO_LARGE:
+        return CommonErrorCode.PAYLOAD_TOO_LARGE;
+      case HttpStatus.UNPROCESSABLE_ENTITY:
+        return CommonErrorCode.BUSINESS_RULE_VIOLATION;
       case HttpStatus.TOO_MANY_REQUESTS:
-        // ThrottlerGuard rejections must not masquerade as internal errors —
-        // clients back off on a rate-limit code, they page on-call for a 500.
+        // Rate limits must not look like a 500 to clients.
         return CommonErrorCode.RATE_LIMITED;
       default:
-        return CommonErrorCode.INTERNAL_ERROR;
+        // Any other 4xx is still the caller's mistake, not a server error.
+        return status < HttpStatus.INTERNAL_SERVER_ERROR
+          ? CommonErrorCode.BAD_REQUEST
+          : CommonErrorCode.INTERNAL_ERROR;
     }
   }
 
-  // Pull the per-field message list out of a `ValidationPipe` (or any
-  // HttpException) whose payload carries a `message` string array.
+  // Per-field messages from ValidationPipe.
   private extractValidationDetails(
     exception: HttpException,
   ): string[] | undefined {
@@ -136,12 +130,6 @@ export class HttpExceptionFilter implements ExceptionFilter {
       const detail =
         exception instanceof Error ? exception.message : String(exception);
       this.logger.error(`${context} | ${detail}`, stack);
-      // Mirror unexpected 5xx/unhandled errors to Sentry. Only when the SDK is
-      // initialized (SENTRY_DSN set); a no-op otherwise. Expected 4xx are logged
-      // as warnings below and never reported, to keep Issues/quota clean.
-      if (Sentry.isInitialized()) {
-        Sentry.captureException(exception);
-      }
     } else {
       this.logger.warn(context);
     }

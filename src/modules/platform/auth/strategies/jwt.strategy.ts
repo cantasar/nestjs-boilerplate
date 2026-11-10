@@ -19,19 +19,19 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
     });
   }
 
-  async validate(payload: JwtPayload): Promise<Omit<User, 'password'>> {
-    // Access and refresh tokens share a signing secret; only a token minted
-    // with the 'access' claim may authenticate a request.
+  async validate(
+    payload: JwtPayload,
+  ): Promise<Omit<User, 'password' | 'refreshToken'>> {
+    // Only access tokens may authenticate a request.
     if (payload.tokenType !== 'access')
       throw new UnauthorizedException('Invalid token type');
-    // Per-request DB lookup is a deliberate template default: it enforces
-    // deactivation immediately (correctness first). Projects with tighter
-    // latency budgets may swap in a short-TTL cache.
+    // A DB lookup per request makes deactivation work at once. Add a short cache if latency matters.
     const user = await this.userRepository.findById(payload.sub);
     if (!user) throw new UnauthorizedException('User not found');
     if (!user.isActive) throw new UnauthorizedException('User is not active');
-    const { password, ...result } = user;
+    const { password, refreshToken, ...result } = user;
     void password;
+    void refreshToken;
     return result;
   }
 }

@@ -5,10 +5,7 @@ import {
 } from '../constants/queue.constants';
 import type { QueueJobOptions } from '../interfaces/queue-job-options.interface';
 
-/**
- * Builds BullMQ `JobsOptions` from a feature's partial overrides, applying the
- * shared retention caps and an exponential backoff default. Pure — no `this`.
- */
+/** Builds BullMQ job options and adds the shared history caps. */
 export function buildJobOptions(options: QueueJobOptions = {}): JobsOptions {
   const { attempts, backoffMs, delayMs } = options;
   return {

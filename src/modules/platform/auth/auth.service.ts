@@ -1,7 +1,4 @@
 import {
-  BadRequestException,
-  ConflictException,
-  Inject,
   Injectable,
   InternalServerErrorException,
   Logger,
@@ -10,12 +7,15 @@ import {
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
-import { randomUUID, timingSafeEqual } from 'crypto';
+import { createHash, randomUUID, timingSafeEqual } from 'crypto';
 import type * as jwt from 'jsonwebtoken';
 import { UserRepository } from '../../shared/database/repositories/user.repository';
 import { MailQueueService } from '../mail/queue/mail-queue.service';
 import { RedisService } from '../../shared/redis/redis.service';
 import { generateOtpCode } from '../../shared/common/utils/otp.util';
+import { DomainException } from '../../shared/common/errors/domain.exception';
+import { AuthErrorCode } from '../../shared/common/errors/enums/auth-error-code.enum';
+import { CommonErrorCode } from '../../shared/common/errors/enums/common-error-code.enum';
 import {
   AUTH_CONSTANTS,
   AUTH_CONFIG_KEYS,
@@ -26,22 +26,17 @@ import { UpsertOAuthUser } from '../../shared/database/types';
 import type { User } from '../../shared/database/types/user-select.type';
 import { OAuth2Client } from 'google-auth-library';
 import { AuthProvider } from '../../shared/database/schema/enums/auth-provider.enum';
+import { UserRole } from '../../shared/database/schema/enums/user-role.enum';
 import appleSignin from 'apple-signin-auth';
-import { SMS_SENDER } from '../sms/interfaces/sms-sender.interface';
-import type { SmsSender } from '../sms/interfaces/sms-sender.interface';
-import type {
-  EmailVerifySession,
-  EmailLoginSession,
-  PhoneSession,
-} from './interfaces/auth-session.types';
+import type { EmailVerifySession } from './interfaces/auth-session.types';
 import type { JwtPayload } from './interfaces/jwt-payload.interface';
 
 interface SafeUser {
   id: number;
   email: string | null;
-  phone: string | null;
   firstName: string | null;
   lastName: string | null;
+  role: UserRole;
   isActive: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -80,9 +75,7 @@ interface LoginInput {
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
   private googleClient: OAuth2Client | null = null;
-  // Lazily computed once, then reused, so a "user not found" login path still
-  // spends bcrypt time — denying a timing oracle that distinguishes unknown
-  // accounts. Lazy (not a field initializer) so construction stays cheap.
+  // Used for fake compares on unknown emails, so login timing does not reveal which accounts exist.
   private dummyPasswordHash: string | null = null;
 
   constructor(
@@ -91,13 +84,13 @@ export class AuthService {
     private readonly configService: ConfigService,
     private readonly redisService: RedisService,
     private readonly mailQueue: MailQueueService,
-    @Inject(SMS_SENDER) private readonly smsSender: SmsSender,
   ) {}
 
   async register(dto: RegisterInput): Promise<AuthResponse> {
     const email = this.normalizeEmail(dto.email);
     const existingUser = await this.userRepository.findByEmail(email);
-    if (existingUser) throw new ConflictException('Email already in use');
+    if (existingUser)
+      throw new DomainException(AuthErrorCode.EMAIL_ALREADY_IN_USE);
     const hashedPassword = await bcrypt.hash(
       dto.password,
       AUTH_CONSTANTS.BCRYPT_SALT_ROUNDS,
@@ -110,52 +103,40 @@ export class AuthService {
       isActive: true,
     });
     if (!user) throw new InternalServerErrorException('Failed to create user');
-    const tokens = await this.generateTokens(user.id, user.email);
-    await this.updateRefreshToken(user.id, tokens.refreshToken);
-    return {
-      accessToken: tokens.accessToken,
-      refreshToken: tokens.refreshToken,
-      user: this.toSafeUser(user),
-    };
+    return this.issueAuthResponse(user);
   }
 
   async login(dto: LoginInput): Promise<AuthResponse> {
     const email = this.normalizeEmail(dto.email);
     const user = await this.userRepository.findByEmail(email);
-    if (!user) {
+    // Unknown and social-only accounts look like a wrong password: same code, same bcrypt time.
+    if (!user?.password) {
       await this.dummyPasswordCompare(dto.password);
-      throw new UnauthorizedException('Invalid credentials');
+      throw new DomainException(AuthErrorCode.INVALID_CREDENTIALS);
     }
-    if (!user.isActive) throw new UnauthorizedException('User is not active');
-    if (!user.password)
-      throw new UnauthorizedException('This account uses social login');
     const isPasswordValid = await bcrypt.compare(dto.password, user.password);
     if (!isPasswordValid)
-      throw new UnauthorizedException('Invalid credentials');
-    const tokens = await this.generateTokens(user.id, user.email);
-    await this.updateRefreshToken(user.id, tokens.refreshToken);
-    return {
-      accessToken: tokens.accessToken,
-      refreshToken: tokens.refreshToken,
-      user: this.toSafeUser(user),
-    };
+      throw new DomainException(AuthErrorCode.INVALID_CREDENTIALS);
+    // The active check is in issueAuthResponse, after the password, so a wrong password never shows the status.
+    return this.issueAuthResponse(user);
   }
 
   async googleLogin(idToken: string): Promise<AuthResponse> {
     const clientId = this.configService.get<string>('GOOGLE_CLIENT_ID');
-    if (!clientId)
-      throw new BadRequestException('Google login is not configured');
+    if (!clientId) throw new DomainException(AuthErrorCode.PROVIDER_DISABLED);
     if (!this.googleClient) this.googleClient = new OAuth2Client(clientId);
-    // Assert the token's `aud` matches our client id — without it, a valid
-    // Google token minted for a different OAuth client would be accepted.
-    const ticket = await this.googleClient.verifyIdToken({
-      idToken,
-      audience: clientId,
-    });
+    // Checking `aud` rejects Google tokens made for another app.
+    const ticket = await this.googleClient
+      .verifyIdToken({ idToken, audience: clientId })
+      .catch(() => {
+        throw new UnauthorizedException('Invalid Token');
+      });
     const payload = ticket.getPayload();
-    if (!payload?.email) throw new UnauthorizedException('Invalid Token');
+    // Accounts are linked by email, so only a verified email is trusted.
+    if (!payload?.email || payload.email_verified !== true)
+      throw new UnauthorizedException('Invalid Token');
 
-    const user: UpsertOAuthUser = {
+    return this.oauthLogin({
       email: payload.email,
       firstName: payload.given_name,
       lastName: payload.family_name,
@@ -163,9 +144,7 @@ export class AuthService {
       provider: AuthProvider.GOOGLE,
       providerId: payload.sub,
       emailVerified: true,
-    };
-
-    return this.oauthLogin(user);
+    });
   }
 
   async appleLogin(
@@ -174,16 +153,17 @@ export class AuthService {
     lastName?: string,
   ): Promise<AuthResponse> {
     const bundleId = this.configService.get<string>('APPLE_BUNDLE_ID');
-    if (!bundleId)
-      throw new BadRequestException('Apple login is not configured');
-    const payload = await appleSignin.verifyIdToken(idToken, {
-      audience: bundleId,
-      ignoreExpiration: false,
-    });
+    if (!bundleId) throw new DomainException(AuthErrorCode.PROVIDER_DISABLED);
+    const payload = await appleSignin
+      .verifyIdToken(idToken, { audience: bundleId, ignoreExpiration: false })
+      .catch(() => {
+        throw new UnauthorizedException('Invalid Token');
+      });
+    // Apple sends `email_verified` as a string or a boolean.
+    if (!payload?.email || String(payload.email_verified) !== 'true')
+      throw new UnauthorizedException('Invalid Token');
 
-    if (!payload?.email) throw new UnauthorizedException('Invalid Token');
-
-    const user: UpsertOAuthUser = {
+    return this.oauthLogin({
       email: payload.email,
       firstName,
       lastName,
@@ -191,18 +171,15 @@ export class AuthService {
       provider: AuthProvider.APPLE,
       providerId: payload.sub,
       emailVerified: true,
-    };
-
-    return this.oauthLogin(user);
+    });
   }
 
   async forgotPassword(rawEmail: string): Promise<void> {
-    // void-ok
     const email = this.normalizeEmail(rawEmail);
-    // Rate-limit before the user lookup so the limiter engages for unknown
-    // emails too — otherwise only existing accounts can hit the limit, leaking
-    // existence.
+    // Limits run before the lookup, so unknown emails hit them too and nothing leaks.
     await this.ensureForgotPasswordRateLimit(email);
+    await this.assertDailyMailLimit(email);
+    await this.assertCodeTriesLeft(email);
     const user = await this.userRepository.findByEmail(email);
     if (!user) return;
     const code = generateOtpCode();
@@ -212,6 +189,8 @@ export class AuthService {
       code,
       AUTH_CONSTANTS.PASSWORD_RESET_CODE_TTL_SECONDS,
     );
+    // A new code gets its own tries.
+    await this.redisService.del(AUTH_REDIS_KEYS.attempts(key));
     try {
       await this.mailQueue.enqueue({
         template: 'password-reset',
@@ -231,96 +210,73 @@ export class AuthService {
     code: string,
     newPassword: string,
   ): Promise<void> {
-    // void-ok
     const email = this.normalizeEmail(rawEmail);
     const key = this.getResetPasswordKey(email);
     const storedCode = await this.redisService.get(key);
-    if (!storedCode || !this.constantTimeEqual(storedCode, code)) {
-      // Count failures and burn the code after too many, so a 6-digit code
-      // can't be brute-forced within the TTL window.
-      await this.registerResetFailure(key);
-      throw new BadRequestException('Invalid or expired verification code');
+    const valid = await this.checkCode(
+      email,
+      key,
+      storedCode,
+      code,
+      AUTH_CONSTANTS.PASSWORD_RESET_CODE_TTL_SECONDS,
+    );
+    // Deleting the code before the change makes it single-use, also for parallel requests.
+    if (!valid || (await this.redisService.del(key)) === 0) {
+      throw new DomainException(AuthErrorCode.INVALID_CODE);
     }
     const user = await this.userRepository.findByEmail(email);
     if (!user) {
-      throw new BadRequestException('Invalid or expired verification code');
+      throw new DomainException(AuthErrorCode.INVALID_CODE);
     }
     const hashedPassword = await bcrypt.hash(
       newPassword,
       AUTH_CONSTANTS.BCRYPT_SALT_ROUNDS,
     );
     await this.userRepository.updatePassword(email, hashedPassword);
+    // The reset code came by email, so the email is proven now.
+    if (!user.emailVerified)
+      await this.userRepository.markEmailVerified(user.id);
     await this.userRepository.updateRefreshToken(user.id, null);
-    await this.redisService.del(key);
     await this.redisService.del(AUTH_REDIS_KEYS.attempts(key));
-  }
-
-  /**
-   * Increments the reset-code failure counter; once the attempt limit is hit the
-   * code + counter are deleted so further guesses fail closed.
-   */
-  private async registerResetFailure(key: string): Promise<void> {
-    // void-ok
-    const attemptsKey = AUTH_REDIS_KEYS.attempts(key);
-    // Atomic INCR+EXPIRE — same lifetime as the code it guards.
-    const attempts = await this.redisService.incrWithTtlSeconds(
-      attemptsKey,
-      AUTH_CONSTANTS.PASSWORD_RESET_CODE_TTL_SECONDS,
-    );
-    const maxAttempts = this.getConfigNumber(
-      AUTH_CONFIG_KEYS.OTP_MAX_ATTEMPTS,
-      AUTH_OTP_DEFAULTS.OTP_MAX_ATTEMPTS,
-    );
-    if (attempts >= maxAttempts) {
-      await this.redisService.del(key);
-      await this.redisService.del(attemptsKey);
-    }
+    await this.redisService.del(AUTH_REDIS_KEYS.codeFailures(email));
   }
 
   async refresh(refreshToken: string): Promise<RefreshResponse> {
+    const invalid = new UnauthorizedException(
+      'Invalid or expired refresh token',
+    );
+    const secret = this.configService.getOrThrow<string>('JWT_SECRET');
+    let payload: JwtPayload;
     try {
-      const payload = this.jwtService.verify<JwtPayload>(refreshToken, {
-        secret: this.configService.getOrThrow<string>('JWT_SECRET'),
-      });
-      // Only a token minted as a refresh token may be rotated — an access
-      // token (same secret) must never work here.
-      if (payload.tokenType !== 'refresh')
-        throw new UnauthorizedException('Invalid token type');
-      const user = await this.userRepository.findById(payload.sub);
-      if (!user) throw new UnauthorizedException('User not found');
-      if (!user.isActive) throw new UnauthorizedException('User is not active');
-      if (!user.refreshToken)
-        throw new UnauthorizedException('Invalid refresh token');
-      const isTokenValid = await bcrypt.compare(
-        refreshToken,
-        user.refreshToken,
-      );
-      if (!isTokenValid)
-        throw new UnauthorizedException('Invalid refresh token');
-      // Rotate: issue a new refresh token and overwrite the stored hash, so the
-      // presented token is single-use — a leaked/replayed old token no longer
-      // matches and is rejected.
-      const tokens = await this.generateTokens(user.id, user.email);
-      await this.updateRefreshToken(user.id, tokens.refreshToken);
-      return {
-        accessToken: tokens.accessToken,
-        refreshToken: tokens.refreshToken,
-      };
+      payload = this.jwtService.verify<JwtPayload>(refreshToken, { secret });
     } catch {
-      throw new UnauthorizedException('Invalid or expired refresh token');
+      throw invalid;
     }
+    // Only refresh tokens can be rotated, never access tokens. Database errors still become a 500.
+    if (payload.tokenType !== 'refresh') throw invalid;
+    const user = await this.userRepository.findById(payload.sub);
+    if (!user?.isActive) throw invalid;
+    // Rotation makes every refresh token single-use. The swap only works while the old hash is still stored.
+    const tokens = await this.generateTokens(user.id, user.email);
+    const rotated = await this.userRepository.rotateRefreshToken(
+      user.id,
+      this.hashToken(refreshToken),
+      this.hashToken(tokens.refreshToken),
+    );
+    if (!rotated) throw invalid;
+    return {
+      accessToken: tokens.accessToken,
+      refreshToken: tokens.refreshToken,
+    };
   }
 
-  // --- Email verification (after register) -------------------------------
+  // --- Email verification ------------------------------------------------
 
-  /**
-   * Issues an email-verification OTP for a freshly created account and returns
-   * the session token. Mail delivery is best-effort so a transient SMTP error
-   * does not lock the new account out — the session stays valid until TTL.
-   */
-  async issueEmailVerificationOtp(
+  /** Stores a verify session and mails its code. Mail errors are logged, so a mail outage does not lock the account. */
+  private async issueEmailVerificationOtp(
     userId: number,
     email: string,
+    sendMail: boolean,
   ): Promise<OtpSession> {
     const otp = generateOtpCode();
     const sessionToken = randomUUID();
@@ -339,6 +295,7 @@ export class AuthService {
       JSON.stringify(session),
       ttl,
     );
+    if (!sendMail) return this.toOtpSession(sessionToken, ttl);
     try {
       await this.mailQueue.enqueue({
         template: 'verify-email',
@@ -357,237 +314,74 @@ export class AuthService {
   async verifyEmail(sessionToken: string, otp: string): Promise<AuthResponse> {
     const key = AUTH_REDIS_KEYS.emailVerifySession(sessionToken);
     const session = await this.readSession<EmailVerifySession>(key);
-    if (!session) throw new BadRequestException('Invalid or expired session');
+    if (!session) throw new DomainException(AuthErrorCode.INVALID_CODE);
     if (session.type !== 'email_verify')
-      throw new BadRequestException('Invalid session type');
-    await this.assertOtpMatch(key, otp, session.otp);
+      throw new DomainException(AuthErrorCode.INVALID_CODE);
+    const valid = await this.checkCode(
+      session.email,
+      key,
+      session.otp,
+      otp,
+      this.maxSessionTtlSeconds(),
+    );
+    if (!valid) throw new DomainException(AuthErrorCode.INVALID_CODE);
     if ((await this.redisService.del(key)) === 0)
-      throw new BadRequestException('Session already used');
+      throw new DomainException(AuthErrorCode.INVALID_CODE);
 
     const user = await this.userRepository.findById(session.userId);
-    if (!user) throw new BadRequestException('User not found');
+    if (!user) throw new DomainException(AuthErrorCode.INVALID_CODE);
     await this.userRepository.markEmailVerified(user.id);
+    await this.redisService.del(AUTH_REDIS_KEYS.attempts(key));
+    await this.redisService.del(AUTH_REDIS_KEYS.codeFailures(session.email));
     return this.issueAuthResponse(user);
   }
 
-  async resendEmailVerification(rawEmail: string): Promise<OtpSession | null> {
+  async resendEmailVerification(rawEmail: string): Promise<OtpSession> {
     const email = this.normalizeEmail(rawEmail);
     await this.assertResendRateLimit(email);
+    await this.assertDailyMailLimit(email);
+    await this.assertCodeTriesLeft(email);
     const user = await this.userRepository.findByEmail(email);
-    // Enumeration-safe: no hint when the account is missing or already verified.
-    if (!user || user.emailVerified) return null;
-    return this.issueEmailVerificationOtp(user.id, email);
-  }
-
-  // --- Passwordless email login ------------------------------------------
-
-  async loginEmail(rawEmail: string, password: string): Promise<OtpSession> {
-    const email = this.normalizeEmail(rawEmail);
-    const user = await this.userRepository.findByEmail(email);
-    if (!user) {
-      await this.dummyPasswordCompare(password);
-      throw new UnauthorizedException('Invalid credentials');
+    if (user && !user.emailVerified) {
+      return this.issueEmailVerificationOtp(user.id, email, true);
     }
-    if (!user.isActive) throw new UnauthorizedException('User is not active');
-    if (!user.password)
-      throw new UnauthorizedException('This account uses social login');
-    const isPasswordValid = await bcrypt.compare(password, user.password);
-    if (!isPasswordValid)
-      throw new UnauthorizedException('Invalid credentials');
-
-    await this.assertEmailLoginRateLimit(email);
-    const otp = generateOtpCode();
-    const sessionToken = randomUUID();
-    const ttl = this.getConfigNumber(
-      AUTH_CONFIG_KEYS.EMAIL_LOGIN_SESSION_TTL_SECONDS,
-      AUTH_OTP_DEFAULTS.EMAIL_LOGIN_SESSION_TTL_SECONDS,
-    );
-    const session: EmailLoginSession = {
-      type: 'email_login',
-      email,
-      userId: user.id,
-      otp,
-    };
-    const key = AUTH_REDIS_KEYS.emailLoginSession(sessionToken);
-    await this.redisService.setWithExpirySeconds(
-      key,
-      JSON.stringify(session),
-      ttl,
-    );
-    try {
-      await this.mailQueue.enqueue({ template: 'otp', to: email, code: otp });
-    } catch (error) {
-      await this.redisService.del(key);
-      this.logger.error(
-        'Login mail failed',
-        error instanceof Error ? error.stack : undefined,
-      );
-      throw new InternalServerErrorException(
-        'Could not deliver verification code',
-      );
-    }
-    return this.toOtpSession(sessionToken, ttl, otp);
+    // Unknown and verified emails get a stored session with no mail, so resend and verify act the same for every email.
+    return this.issueEmailVerificationOtp(0, email, false);
   }
 
-  async verifyEmailLogin(
-    sessionToken: string,
-    otp: string,
-  ): Promise<AuthResponse> {
-    const key = AUTH_REDIS_KEYS.emailLoginSession(sessionToken);
-    const session = await this.readSession<EmailLoginSession>(key);
-    if (!session) throw new BadRequestException('Invalid or expired session');
-    if (session.type !== 'email_login')
-      throw new BadRequestException('Invalid session type');
-    await this.assertOtpMatch(key, otp, session.otp);
-    if ((await this.redisService.del(key)) === 0)
-      throw new BadRequestException('Session already used');
-
-    const user = await this.userRepository.findById(session.userId);
-    if (!user) throw new BadRequestException('User not found');
-    return this.issueAuthResponse(user);
-  }
-
-  // --- Phone register ----------------------------------------------------
-
-  async registerPhone(rawPhone: string, password: string): Promise<OtpSession> {
-    const phone = this.normalizePhone(rawPhone);
-    const existing = await this.userRepository.findByPhone(phone);
-    if (existing) throw new ConflictException('Phone already in use');
-    const hashedPassword = await bcrypt.hash(
-      password,
-      AUTH_CONSTANTS.BCRYPT_SALT_ROUNDS,
-    );
-    const otp = await this.sendPhoneOtp(phone);
-    const sessionToken = randomUUID();
-    const ttl = this.getConfigNumber(
-      AUTH_CONFIG_KEYS.PHONE_SESSION_TTL_SECONDS,
-      AUTH_OTP_DEFAULTS.PHONE_SESSION_TTL_SECONDS,
-    );
-    const session: PhoneSession = {
-      type: 'phone_register',
-      phone,
-      hashedPassword,
-      otp,
-    };
-    await this.redisService.setWithExpirySeconds(
-      AUTH_REDIS_KEYS.phoneSession(sessionToken),
-      JSON.stringify(session),
-      ttl,
-    );
-    return this.toOtpSession(sessionToken, ttl);
-  }
-
-  async verifyPhoneRegister(
-    sessionToken: string,
-    otp: string,
-  ): Promise<AuthResponse> {
-    const key = AUTH_REDIS_KEYS.phoneSession(sessionToken);
-    const session = await this.readSession<PhoneSession>(key);
-    if (!session) throw new BadRequestException('Invalid or expired session');
-    if (session.type !== 'phone_register')
-      throw new BadRequestException('Invalid session type');
-    await this.assertOtpMatch(key, otp, session.otp);
-    if ((await this.redisService.del(key)) === 0)
-      throw new BadRequestException('Session already used');
-
-    const user = await this.userRepository.create({
-      phone: session.phone,
-      password: session.hashedPassword,
-      phoneVerified: true,
-      isActive: true,
-    });
-    if (!user) throw new InternalServerErrorException('Failed to create user');
-    return this.issueAuthResponse(user);
-  }
-
-  // --- Phone login -------------------------------------------------------
-
-  async loginPhone(rawPhone: string, password: string): Promise<OtpSession> {
-    const phone = this.normalizePhone(rawPhone);
-    const user = await this.userRepository.findByPhone(phone);
-    if (!user) {
-      await this.dummyPasswordCompare(password);
-      throw new UnauthorizedException('Invalid credentials');
-    }
-    if (!user.isActive) throw new UnauthorizedException('User is not active');
-    if (!user.password)
-      throw new UnauthorizedException('This account uses social login');
-    const isPasswordValid = await bcrypt.compare(password, user.password);
-    if (!isPasswordValid)
-      throw new UnauthorizedException('Invalid credentials');
-
-    const otp = await this.sendPhoneOtp(phone);
-    const sessionToken = randomUUID();
-    const ttl = this.getConfigNumber(
-      AUTH_CONFIG_KEYS.PHONE_SESSION_TTL_SECONDS,
-      AUTH_OTP_DEFAULTS.PHONE_SESSION_TTL_SECONDS,
-    );
-    const session: PhoneSession = {
-      type: 'phone_login',
-      phone,
-      userId: user.id,
-      otp,
-    };
-    await this.redisService.setWithExpirySeconds(
-      AUTH_REDIS_KEYS.phoneSession(sessionToken),
-      JSON.stringify(session),
-      ttl,
-    );
-    // Login OTP is never echoed, even in debug mode.
-    return this.toOtpSession(sessionToken, ttl);
-  }
-
-  async verifyPhoneLogin(
-    sessionToken: string,
-    otp: string,
-  ): Promise<AuthResponse> {
-    const key = AUTH_REDIS_KEYS.phoneSession(sessionToken);
-    const session = await this.readSession<PhoneSession>(key);
-    if (!session) throw new BadRequestException('Invalid or expired session');
-    if (session.type !== 'phone_login')
-      throw new BadRequestException('Invalid session type');
-    await this.assertOtpMatch(key, otp, session.otp);
-    if ((await this.redisService.del(key)) === 0)
-      throw new BadRequestException('Session already used');
-
-    const user = await this.userRepository.findById(session.userId);
-    if (!user) throw new BadRequestException('User not found');
-    return this.issueAuthResponse(user);
-  }
-
-  // --- Authenticated actions --------------------------------------------
+  // --- Authenticated actions ---------------------------------------------
 
   async changePassword(
     userId: number,
     currentPassword: string,
     newPassword: string,
   ): Promise<void> {
-    // void-ok
     const user = await this.userRepository.findById(userId);
     if (!user) throw new UnauthorizedException('User not found');
-    if (!user.password)
-      throw new BadRequestException('This account uses social login');
+    if (!user.password) throw new DomainException(AuthErrorCode.SOCIAL_ACCOUNT);
     const isPasswordValid = await bcrypt.compare(
       currentPassword,
       user.password,
     );
     if (!isPasswordValid)
-      throw new BadRequestException('Current password is incorrect');
+      throw new DomainException(AuthErrorCode.WRONG_PASSWORD);
     const hashedPassword = await bcrypt.hash(
       newPassword,
       AUTH_CONSTANTS.BCRYPT_SALT_ROUNDS,
     );
     await this.userRepository.updatePasswordById(userId, hashedPassword);
+    // A new password ends every session, like a reset does.
+    await this.userRepository.updateRefreshToken(userId, null);
   }
 
   async logout(userId: number): Promise<void> {
-    // void-ok: clears the stored refresh token so it can no longer be rotated.
     await this.userRepository.updateRefreshToken(userId, null);
   }
 
   // --- Internal helpers --------------------------------------------------
 
   private async issueAuthResponse(user: User): Promise<AuthResponse> {
+    if (!user.isActive) throw new UnauthorizedException('User is not active');
     const tokens = await this.generateTokens(user.id, user.email);
     await this.updateRefreshToken(user.id, tokens.refreshToken);
     return {
@@ -597,27 +391,8 @@ export class AuthService {
     };
   }
 
-  /** Sends an OTP over SMS and returns it (for storage in the session). */
-  private async sendPhoneOtp(phone: string): Promise<string> {
-    await this.assertPhoneOtpRateLimit(phone);
-    const otp = generateOtpCode();
-    try {
-      await this.smsSender.send(phone, `Your verification code is ${otp}`);
-    } catch (error) {
-      this.logger.error(
-        'SMS sending failed',
-        error instanceof Error ? error.stack : undefined,
-      );
-      throw new InternalServerErrorException(
-        'Could not deliver verification code',
-      );
-    }
-    return otp;
-  }
-
   /** Spends bcrypt time on a missing account to equalize login timing. */
   private async dummyPasswordCompare(password: string): Promise<void> {
-    // void-ok
     if (!this.dummyPasswordHash) {
       this.dummyPasswordHash = await bcrypt.hash(
         randomUUID(),
@@ -646,37 +421,59 @@ export class AuthService {
   }
 
   /**
-   * Compares a submitted OTP against the stored one. On mismatch it increments a
-   * per-session attempt counter; once the limit is hit the session and its
-   * counter are burned. Throws on every failure path.
+   * Checks an email code with every counter raised first, so parallel guesses cannot pass a limit.
+   * The last allowed wrong try burns the code; a correct code clears the counters in the caller.
    */
-  private async assertOtpMatch(
-    sessionKey: string,
-    submittedOtp: string,
-    expectedOtp: string,
-  ): Promise<void> {
-    // void-ok
-    if (this.constantTimeEqual(submittedOtp, expectedOtp)) return;
-    const attemptsKey = AUTH_REDIS_KEYS.attempts(sessionKey);
-    // Atomic INCR+EXPIRE, bounded so it can never outlive the session it guards.
+  private async checkCode(
+    email: string,
+    codeKey: string,
+    expected: string | null,
+    submitted: string,
+    ttlSeconds: number,
+  ): Promise<boolean> {
+    const tries = await this.redisService.incrWithTtlSeconds(
+      AUTH_REDIS_KEYS.codeFailures(email),
+      AUTH_CONSTANTS.CODE_FAILURE_WINDOW_SECONDS,
+    );
+    if (tries > AUTH_CONSTANTS.CODE_FAILURE_LIMIT)
+      throw new DomainException(CommonErrorCode.RATE_LIMITED);
     const attempts = await this.redisService.incrWithTtlSeconds(
-      attemptsKey,
-      this.maxSessionTtlSeconds(),
+      AUTH_REDIS_KEYS.attempts(codeKey),
+      ttlSeconds,
     );
     const maxAttempts = this.getConfigNumber(
       AUTH_CONFIG_KEYS.OTP_MAX_ATTEMPTS,
       AUTH_OTP_DEFAULTS.OTP_MAX_ATTEMPTS,
     );
-    if (attempts >= maxAttempts) {
-      await this.redisService.del(sessionKey);
-      await this.redisService.del(attemptsKey);
-      throw new BadRequestException('Too many failed attempts');
-    }
-    throw new BadRequestException('Invalid verification code');
+    if (
+      expected &&
+      attempts <= maxAttempts &&
+      this.constantTimeEqual(submitted, expected)
+    )
+      return true;
+    if (attempts >= maxAttempts) await this.redisService.del(codeKey);
+    return false;
+  }
+
+  /** At most CODE_MAILS_PER_DAY code mails per email, so nobody can flood an inbox. */
+  private async assertDailyMailLimit(email: string): Promise<void> {
+    await this.assertRateLimit(
+      AUTH_REDIS_KEYS.codeMailsPerDay(email),
+      AUTH_CONSTANTS.CODE_MAILS_PER_DAY,
+      AUTH_CONSTANTS.CODE_MAIL_WINDOW_SECONDS,
+    );
+  }
+
+  /** Refuses new codes for an email with too many wrong codes. */
+  private async assertCodeTriesLeft(email: string): Promise<void> {
+    const failures = Number(
+      await this.redisService.get(AUTH_REDIS_KEYS.codeFailures(email)),
+    );
+    if (failures >= AUTH_CONSTANTS.CODE_FAILURE_LIMIT)
+      throw new DomainException(CommonErrorCode.RATE_LIMITED);
   }
 
   private async assertResendRateLimit(email: string): Promise<void> {
-    // void-ok
     await this.assertRateLimit(
       AUTH_REDIS_KEYS.emailVerifyResendLimit(email),
       this.getConfigNumber(
@@ -690,58 +487,23 @@ export class AuthService {
     );
   }
 
-  private async assertEmailLoginRateLimit(email: string): Promise<void> {
-    // void-ok
-    await this.assertRateLimit(
-      AUTH_REDIS_KEYS.emailLoginLimit(email),
-      this.getConfigNumber(
-        AUTH_CONFIG_KEYS.RESEND_RATE_LIMIT_MAX,
-        AUTH_OTP_DEFAULTS.RESEND_RATE_LIMIT_MAX,
-      ),
-      this.getConfigNumber(
-        AUTH_CONFIG_KEYS.RESEND_RATE_LIMIT_WINDOW_SECONDS,
-        AUTH_OTP_DEFAULTS.RESEND_RATE_LIMIT_WINDOW_SECONDS,
-      ),
-    );
-  }
-
-  private async assertPhoneOtpRateLimit(phone: string): Promise<void> {
-    // void-ok
-    await this.assertRateLimit(
-      AUTH_REDIS_KEYS.phoneOtpLimit(phone),
-      this.getConfigNumber(
-        AUTH_CONFIG_KEYS.PHONE_RATE_LIMIT_MAX,
-        AUTH_OTP_DEFAULTS.PHONE_RATE_LIMIT_MAX,
-      ),
-      this.getConfigNumber(
-        AUTH_CONFIG_KEYS.PHONE_RATE_LIMIT_WINDOW_SECONDS,
-        AUTH_OTP_DEFAULTS.PHONE_RATE_LIMIT_WINDOW_SECONDS,
-      ),
-    );
-  }
-
   private async assertRateLimit(
     key: string,
     max: number,
     windowSeconds: number,
   ): Promise<void> {
-    // void-ok
     const count = await this.redisService.incrWithTtlSeconds(
       key,
       windowSeconds,
     );
-    if (count > max)
-      throw new BadRequestException(
-        'Too many requests. Please try again later.',
-      );
+    if (count > max) throw new DomainException(CommonErrorCode.RATE_LIMITED);
   }
 
   private async generateTokens(
     userId: number,
     email: string | null,
   ): Promise<{ accessToken: string; refreshToken: string }> {
-    // `tokenType` discriminates the two tokens (same signing secret) so each
-    // is only accepted by its own consumer (JwtStrategy vs. refresh()).
+    // Both tokens share a secret, so `tokenType` decides where each one is accepted.
     const accessPayload: JwtPayload = {
       sub: userId,
       email,
@@ -780,28 +542,26 @@ export class AuthService {
       expiresIn: this.configService.getOrThrow(
         'JWT_REFRESH_EXPIRATION',
       ) as jwt.SignOptions['expiresIn'],
+      // A unique id, so two refresh tokens are never equal, even in the same second.
+      jwtid: randomUUID(),
     };
   }
 
   private async ensureForgotPasswordRateLimit(email: string): Promise<void> {
-    // void-ok
-    const limitKey = `limit:forgot:${email}`;
     const requestCount = await this.redisService.incrWithTtlSeconds(
-      limitKey,
+      AUTH_REDIS_KEYS.forgotPasswordLimit(email),
       AUTH_CONSTANTS.FORGOT_PASSWORD_WINDOW_SECONDS,
     );
     if (requestCount > AUTH_CONSTANTS.FORGOT_PASSWORD_REQUESTS_LIMIT) {
-      throw new BadRequestException(
-        'Too many requests. Please try again later.',
-      );
+      throw new DomainException(CommonErrorCode.RATE_LIMITED);
     }
   }
 
   private getResetPasswordKey(email: string): string {
-    return `reset_pass:${email}`;
+    return AUTH_REDIS_KEYS.resetPassword(email);
   }
 
-  /** Upper bound for the attempt-counter TTL (longest session kind). */
+  /** Attempt counters never outlive the longest session. */
   private maxSessionTtlSeconds(): number {
     return this.getConfigNumber(
       AUTH_CONFIG_KEYS.EMAIL_VERIFY_SESSION_TTL_SECONDS,
@@ -817,7 +577,7 @@ export class AuthService {
   }
 
   private shouldEchoOtp(): boolean {
-    // Never echo OTPs in production, even if the debug flag is mistakenly set.
+    // Never echo OTPs in production, even if the debug flag is set by mistake.
     return (
       this.configService.get<string>('NODE_ENV') !== 'production' &&
       this.configService.get<string>(AUTH_CONFIG_KEYS.DEBUG_RETURN_OTP) ===
@@ -841,53 +601,36 @@ export class AuthService {
     userId: number,
     refreshToken: string,
   ): Promise<void> {
-    // void-ok
-    const hashedToken = await bcrypt.hash(
-      refreshToken,
-      AUTH_CONSTANTS.BCRYPT_SALT_ROUNDS,
+    await this.userRepository.updateRefreshToken(
+      userId,
+      this.hashToken(refreshToken),
     );
-    await this.userRepository.updateRefreshToken(userId, hashedToken);
+  }
+
+  /** SHA-256 of the whole token. bcrypt reads only 72 bytes, and refresh tokens of one user share those. */
+  private hashToken(token: string): string {
+    return createHash('sha256').update(token).digest('hex');
   }
 
   private async oauthLogin(data: UpsertOAuthUser): Promise<AuthResponse> {
-    const normalizedData = {
+    const user = await this.userRepository.upsertOAuthUser({
       ...data,
       email: this.normalizeEmail(data.email),
-    };
-    const user = await this.userRepository.upsertOAuthUser(normalizedData);
-    const tokens = await this.generateTokens(user.id, user.email);
-    await this.updateRefreshToken(user.id, tokens.refreshToken);
-    return {
-      accessToken: tokens.accessToken,
-      refreshToken: tokens.refreshToken,
-      user: this.toSafeUser(user),
-    };
+    });
+    return this.issueAuthResponse(user);
   }
 
   private normalizeEmail(email: string): string {
     return email.trim().toLowerCase();
   }
 
-  /**
-   * Provider-agnostic phone normalization: strips everything except a leading
-   * `+` and digits, then requires at least 8 digits. No country assumptions —
-   * clients should submit E.164 (e.g. `+15551234567`).
-   */
-  private normalizePhone(phone: string): string {
-    const cleaned = phone.trim().replace(/(?!^\+)\D/g, '');
-    const digits = cleaned.replace(/\D/g, '');
-    if (digits.length < 8 || digits.length > 15)
-      throw new BadRequestException('Invalid phone number');
-    return cleaned;
-  }
-
   private toSafeUser(user: User): SafeUser {
     return {
       id: user.id,
       email: user.email,
-      phone: user.phone,
       firstName: user.firstName,
       lastName: user.lastName,
+      role: user.role,
       isActive: user.isActive,
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,

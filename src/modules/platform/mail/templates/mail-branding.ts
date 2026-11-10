@@ -1,24 +1,13 @@
-/**
- * Shared, generic branding + layout for transactional emails.
- *
- * Templates stay plain functions (no DI) so they can be unit-tested without a
- * Nest container. Brand values are read from `process.env` with neutral
- * fallbacks — set `MAIL_FROM_NAME`, `APP_PUBLIC_URL`, and optionally
- * `MAIL_LOGO_URL` to brand outgoing mail without touching template code.
- */
+/** Shared email layout and branding. No DI, so tests need no Nest container. */
 
 const FALLBACK_BRAND_NAME = 'App';
 
-/** Display name used in copy and the brand header. Prefers `MAIL_FROM_NAME`. */
+/** Brand name used in email text and the header. */
 export function getBrandName(): string {
   return process.env.MAIL_FROM_NAME ?? FALLBACK_BRAND_NAME;
 }
 
-/**
- * Public URL of the email logo. Prefers `MAIL_LOGO_URL`, else derives it from
- * `APP_PUBLIC_URL`. Returns `null` when neither is set so the header can fall
- * back to a text wordmark (no broken image).
- */
+/** Logo URL, or `null` so the header shows text instead of a broken image. */
 export function getMailLogoUrl(): string | null {
   const explicit = process.env.MAIL_LOGO_URL;
   if (explicit) return explicit;
@@ -37,11 +26,7 @@ export function escapeHtml(value: string): string {
     .replace(/'/g, '&#39;');
 }
 
-/**
- * Brand header used at the top of every transactional email: an optional logo
- * image above the app-name wordmark. The wordmark doubles as the `<img>` alt
- * text so the brand still reads if the image is blocked or unset.
- */
+/** Optional logo over the brand name, which is also the image alt text. */
 function mailBrandHeader(): string {
   const name = escapeHtml(getBrandName());
   const logoUrl = getMailLogoUrl();
@@ -65,9 +50,8 @@ export interface MailLayoutParams {
 }
 
 /**
- * Renders a complete, email-client-safe HTML document around `bodyHtml`. Inline
- * styles keep it self-contained; the `m-*` classes only add dark-mode polish
- * where clients honour `<style>`. Generic neutral palette — no domain branding.
+ * Wraps `bodyHtml` in a full email HTML page with inline styles. The `m-*`
+ * classes only fix dark mode in clients that support `<style>`.
  */
 export function renderMailLayout({
   title,
@@ -155,10 +139,7 @@ export function renderMailLayout({
 </html>`;
 }
 
-/**
- * Renders the boxed monospace code block reused by OTP-bearing templates. The
- * code is escaped before interpolation.
- */
+/** Boxed code block shared by the OTP email templates. */
 export function renderCodeBox(code: string): string {
   const safeCode = escapeHtml(code);
   return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">

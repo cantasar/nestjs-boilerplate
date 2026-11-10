@@ -4,11 +4,9 @@ import type Redis from 'ioredis';
 type MockRedis = {
   get: jest.Mock;
   set: jest.Mock;
-  mget: jest.Mock;
-  rename: jest.Mock;
+  del: jest.Mock;
   eval: jest.Mock;
-  hincrby: jest.Mock;
-  pipeline: jest.Mock;
+  ping: jest.Mock;
   config: jest.Mock;
 };
 
@@ -16,11 +14,9 @@ function makeClient(): MockRedis {
   return {
     get: jest.fn(),
     set: jest.fn(),
-    mget: jest.fn(),
-    rename: jest.fn(),
+    del: jest.fn(),
     eval: jest.fn(),
-    hincrby: jest.fn(),
-    pipeline: jest.fn(),
+    ping: jest.fn(),
     config: jest.fn(),
   };
 }
@@ -38,29 +34,23 @@ describe('RedisService', () => {
     service = makeService(client);
   });
 
-  describe('getJson / setJson', () => {
-    it('parses stored JSON', async () => {
-      client.get.mockResolvedValue('{"a":1}');
-      await expect(service.getJson<{ a: number }>('k')).resolves.toEqual({
-        a: 1,
-      });
+  describe('get / setWithExpirySeconds / del', () => {
+    it('reads a plain string value', async () => {
+      client.get.mockResolvedValue('v');
+      await expect(service.get('k')).resolves.toBe('v');
+      expect(client.get).toHaveBeenCalledWith('k');
     });
 
-    it('treats a corrupt value as a cache miss', async () => {
-      client.get.mockResolvedValue('{oops');
-      await expect(service.getJson('k')).resolves.toBeNull();
+    it('writes the value with an EX ttl in seconds', async () => {
+      await service.setWithExpirySeconds('k', 'v', 60);
+      expect(client.set).toHaveBeenCalledWith('k', 'v', 'EX', 60);
     });
 
-    it('writes serialized JSON with TTL', async () => {
-      await service.setJson('k', { a: 1 }, 60);
-      expect(client.set).toHaveBeenCalledWith('k', '{"a":1}', 'EX', 60);
-    });
-  });
-
-  describe('mget', () => {
-    it('short-circuits on an empty key list (no round-trip)', async () => {
-      await expect(service.mget([])).resolves.toEqual([]);
-      expect(client.mget).not.toHaveBeenCalled();
+    it('returns how many keys were deleted (0 means it was gone)', async () => {
+      client.del.mockResolvedValue(0);
+      await expect(service.del('k')).resolves.toBe(0);
+      client.del.mockResolvedValue(1);
+      await expect(service.del('k')).resolves.toBe(1);
     });
   });
 
@@ -75,41 +65,43 @@ describe('RedisService', () => {
         '30',
       );
     });
-  });
 
-  describe('hincrbyMany', () => {
-    it('pipelines one HINCRBY per field', async () => {
-      const exec = jest.fn().mockResolvedValue([]);
-      const hincrby = jest.fn();
-      client.pipeline.mockReturnValue({ hincrby, exec });
-      await service.hincrbyMany('h', ['a', 'b'], 2);
-      expect(hincrby).toHaveBeenCalledTimes(2);
-      expect(hincrby).toHaveBeenCalledWith('h', 'a', 2);
-      expect(exec).toHaveBeenCalledTimes(1);
-    });
-
-    it('no-ops on an empty field list', async () => {
-      await service.hincrbyMany('h', []);
-      expect(client.pipeline).not.toHaveBeenCalled();
+    it('sets the TTL only on the first increment, so a window never slides', async () => {
+      client.eval.mockResolvedValue(2);
+      await service.incrWithTtlSeconds('k', 30);
+      const [script] = client.eval.mock.calls[0] as [string];
+      expect(script).toMatch(/if v == 1 then redis\.call\('EXPIRE'/);
     });
   });
 
-  describe('tryRename', () => {
-    it('returns true when the rename succeeds', async () => {
-      client.rename.mockResolvedValue('OK');
-      await expect(service.tryRename('a', 'b')).resolves.toBe(true);
-    });
+  describe('acquireLock', () => {
+    it('uses SET NX EX and returns a random token when it wins', async () => {
+      client.set.mockResolvedValue('OK');
+      const first = await service.acquireLock('lock', 900);
+      client.set.mockResolvedValue('OK');
+      const second = await service.acquireLock('lock', 900);
 
-    it('returns false ONLY for a missing source key', async () => {
-      client.rename.mockRejectedValue(new Error('ERR no such key'));
-      await expect(service.tryRename('a', 'b')).resolves.toBe(false);
-    });
-
-    it('rethrows any other error (connection down must surface)', async () => {
-      client.rename.mockRejectedValue(new Error('connection refused'));
-      await expect(service.tryRename('a', 'b')).rejects.toThrow(
-        'connection refused',
+      expect(client.set).toHaveBeenCalledWith(
+        'lock',
+        expect.any(String),
+        'EX',
+        900,
+        'NX',
       );
+      expect(first).toMatch(/^[0-9a-f-]{36}$/);
+      expect(second).not.toBe(first);
+    });
+
+    it('returns null when the lock is already held', async () => {
+      client.set.mockResolvedValue(null);
+      await expect(service.acquireLock('lock', 900)).resolves.toBeNull();
+    });
+  });
+
+  describe('ping', () => {
+    it('passes PONG through for the health check', async () => {
+      client.ping.mockResolvedValue('PONG');
+      await expect(service.ping()).resolves.toBe('PONG');
     });
   });
 
@@ -130,5 +122,26 @@ describe('RedisService', () => {
       // let the fire-and-forget promise settle
       await new Promise((r) => setImmediate(r));
     });
+  });
+
+  // L12: the cache helpers were removed with the cache feature.
+  it('has no leftover cache helpers', () => {
+    for (const name of [
+      'mget',
+      'getJson',
+      'setJson',
+      'incr',
+      'hincrby',
+      'hincrbyMany',
+      'hgetall',
+      'tryRename',
+      'expire',
+      'releaseLock',
+    ]) {
+      expect({ name, present: name in service }).toEqual({
+        name,
+        present: false,
+      });
+    }
   });
 });

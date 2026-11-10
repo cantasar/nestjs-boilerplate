@@ -10,9 +10,8 @@ import {
 } from '../constants/pagination.constants';
 
 /**
- * Standard list query: 1-indexed `page`, clamped `limit`, optional `sort`
- * column and `order`. `limit` is hard-clamped to `[1, MAX_PAGE_SIZE]` after
- * coercion so an over-large client value can never blow up a query.
+ * Standard list query params. `limit` is clamped to `[1, MAX_PAGE_SIZE]` so a
+ * huge client value can't blow up the query.
  */
 export class PaginationQueryDto {
   @ApiPropertyOptional({
@@ -54,7 +53,9 @@ export class PaginationQueryDto {
   @ApiPropertyOptional({
     description: 'Sort direction.',
     enum: SortOrder,
+    enumName: 'SortOrder',
     default: SortOrder.DESC,
+    example: SortOrder.DESC,
   })
   @IsOptional()
   @IsEnum(SortOrder)

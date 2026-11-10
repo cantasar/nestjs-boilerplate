@@ -10,7 +10,6 @@ import {
   Patch,
   Post,
   Query,
-  UseGuards,
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
@@ -19,10 +18,6 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { TodoService } from './todo.service';
-import { Audit } from '../../shared/common/audit/audit.decorator';
-import { AuditAction } from '../../shared/common/audit/enums/audit-action.enum';
-import { AuditEntity } from '../../shared/common/audit/enums/audit-entity.enum';
-import { JwtGuard } from '../../shared/common/guards/jwt.guard';
 import { GetUser } from '../../shared/common/decorators/get-user.decorator';
 import { CreateTodoDto } from './dto/create-todo.dto';
 import { UpdateTodoDto } from './dto/update-todo.dto';
@@ -38,7 +33,6 @@ import type { Todo } from '../../shared/database/types/todo-select.type';
 
 @ApiTags('Todos')
 @ApiBearerAuth()
-@UseGuards(JwtGuard)
 @Controller({ path: 'todos', version: '1' })
 export class TodoController {
   constructor(private readonly todoService: TodoService) {}
@@ -75,10 +69,6 @@ export class TodoController {
   @Post()
   @ApiOperation({ summary: 'Create a todo' })
   @ApiOkEnvelope(TodoResponseDto, { status: 201, description: 'Todo created' })
-  // Reference @Audit usage: a CREATE has no prior state, so no loadBefore — the
-  // entityId is read from the returned row's `id` (the interceptor's default),
-  // and the raw created Todo becomes the `after` snapshot.
-  @Audit({ entity: AuditEntity.RESOURCE, action: AuditAction.CREATE })
   create(
     @Body() dto: CreateTodoDto,
     @GetUser('id') userId: number,
@@ -107,7 +97,6 @@ export class TodoController {
     @Param('id', ParseIntPipe) id: number,
     @GetUser('id') userId: number,
   ): Promise<void> {
-    // void-ok
     await this.todoService.remove(id, userId);
   }
 }

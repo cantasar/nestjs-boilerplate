@@ -2,19 +2,7 @@ import { HttpException } from '@nestjs/common';
 import type { ErrorParams } from './error-code.types';
 import { resolveErrorDefinition } from './error-registry';
 
-/**
- * Thrown for every meaningful domain error. Constructed from a stable machine
- * `code`; the matching `{ httpStatus, message }` is resolved from the central
- * error registry, so the same failure always maps to the same status + message.
- *
- * Pure / no DI — the global `HttpExceptionFilter` is `new`-instantiated in
- * `main.ts` (not an `APP_FILTER` provider), so the error machinery must not
- * depend on the Nest container. The exception embeds `code` into the
- * `HttpException` response payload, which the filter reads to build the envelope.
- *
- * Prefer constructing via a per-domain factory over `new DomainException(...)`
- * at call sites, so the catalog stays the single source of truth.
- */
+/** Throw this for business errors. Status and message come from the error registry by `code`. */
 export class DomainException extends HttpException {
   readonly code: string;
 

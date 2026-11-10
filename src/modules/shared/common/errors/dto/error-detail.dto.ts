@@ -1,10 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
-/**
- * The `error` member of the failure envelope. Carries the stable machine `code`,
- * a human-readable `message`, and optional `details` (e.g. per-field validation
- * issues). Modeled so Swagger can `$ref` it on documented error responses.
- */
+/** The `error` part of the failure envelope, used by Swagger on error responses. */
 export class ErrorDetailDto {
   @ApiProperty({
     example: 'AUTH_INVALID_CREDENTIALS',
@@ -24,6 +20,7 @@ export class ErrorDetailDto {
       'Optional structured details, e.g. per-field validation issues.',
     type: 'array',
     items: { type: 'string' },
+    example: ['email must be an email'],
   })
   details?: unknown[];
 }

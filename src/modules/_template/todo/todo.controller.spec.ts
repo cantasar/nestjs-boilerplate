@@ -1,12 +1,14 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { GUARDS_METADATA } from '@nestjs/common/constants';
+import { IS_PUBLIC_KEY } from '../../shared/common/decorators/public.decorator';
 import { TodoController } from './todo.controller';
 import { TodoService } from './todo.service';
-import { JwtGuard } from '../../shared/common/guards/jwt.guard';
 
 describe('TodoController', () => {
   let controller: TodoController;
   const mockTodoService = {
     findAll: jest.fn(),
+    findPage: jest.fn(),
     findOne: jest.fn(),
     create: jest.fn(),
     update: jest.fn(),
@@ -18,15 +20,45 @@ describe('TodoController', () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [TodoController],
       providers: [{ provide: TodoService, useValue: mockTodoService }],
-    })
-      .overrideGuard(JwtGuard)
-      .useValue({ canActivate: () => true })
-      .compile();
+    }).compile();
     controller = module.get<TodoController>(TodoController);
   });
 
   it('should be defined', () => {
     expect(controller).toBeDefined();
+  });
+
+  // L5: the copy-me template relies on the global JWT guard only (no second guard, no @Public).
+  it('has no own guards and no @Public, so the global JWT guard protects every route', () => {
+    expect(
+      Reflect.getMetadata(GUARDS_METADATA, TodoController),
+    ).toBeUndefined();
+    expect(Reflect.getMetadata(IS_PUBLIC_KEY, TodoController)).toBeUndefined();
+    const methods = Object.getOwnPropertyNames(TodoController.prototype).filter(
+      (name) => name !== 'constructor',
+    );
+    expect(methods.length).toBeGreaterThan(0);
+    for (const name of methods) {
+      const handler: unknown = Reflect.get(TodoController.prototype, name);
+      expect({
+        name,
+        guards: Reflect.getMetadata(GUARDS_METADATA, handler as object),
+      }).toEqual({ name, guards: undefined });
+      expect({
+        name,
+        isPublic: Reflect.getMetadata(IS_PUBLIC_KEY, handler as object),
+      }).toEqual({ name, isPublic: undefined });
+    }
+  });
+
+  describe('findPage', () => {
+    it('passes the owner and the page values to the service', async () => {
+      mockTodoService.findPage.mockResolvedValue({ items: [], meta: {} });
+
+      await controller.findPage({ page: 2, limit: 5 } as never, 7);
+
+      expect(mockTodoService.findPage).toHaveBeenCalledWith(7, 2, 5);
+    });
   });
 
   describe('findAll', () => {

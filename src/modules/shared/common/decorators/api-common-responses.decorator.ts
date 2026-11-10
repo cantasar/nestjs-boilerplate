@@ -1,66 +1,14 @@
 import { applyDecorators, Type } from '@nestjs/common';
 import {
-  ApiBadRequestResponse,
   ApiExtraModels,
-  ApiForbiddenResponse,
-  ApiNotFoundResponse,
   ApiOkResponse,
   ApiResponse,
-  ApiUnauthorizedResponse,
   getSchemaPath,
 } from '@nestjs/swagger';
-import { ERROR_REGISTRY } from '../errors/error-registry';
-import { ErrorResponseDto } from '../errors/dto/error-response.dto';
 import { PaginationMetaDto } from '../dto/pagination-meta.dto';
 
-const validationFailed = {
-  description: 'Validation failed — request payload is invalid.',
-  type: ErrorResponseDto,
-};
-const jwtFailed = {
-  description: 'JWT is missing or invalid.',
-  type: ErrorResponseDto,
-};
-const adminOnly = {
-  description: 'Admin role is required.',
-  type: ErrorResponseDto,
-};
-const notFound = { description: 'Resource not found.', type: ErrorResponseDto };
-
-/** Public endpoint — only validation error. */
-export function ApiPublicErrors() {
-  return applyDecorators(ApiBadRequestResponse(validationFailed));
-}
-
-/** Authenticated endpoint — 400 + 401. */
-export function ApiAuthErrors() {
-  return applyDecorators(
-    ApiBadRequestResponse(validationFailed),
-    ApiUnauthorizedResponse(jwtFailed),
-  );
-}
-
-/** Admin-only endpoint — 400 + 401 + 403. */
-export function ApiAdminErrors() {
-  return applyDecorators(
-    ApiBadRequestResponse(validationFailed),
-    ApiUnauthorizedResponse(jwtFailed),
-    ApiForbiddenResponse(adminOnly),
-  );
-}
-
-/** Admin + ID-based resource endpoint — 400 + 401 + 403 + 404. */
-export function ApiResourceErrors() {
-  return applyDecorators(
-    ApiBadRequestResponse(validationFailed),
-    ApiUnauthorizedResponse(jwtFailed),
-    ApiForbiddenResponse(adminOnly),
-    ApiNotFoundResponse(notFound),
-  );
-}
-
-// Primitive Nest/Swagger "types" (String/Number/Boolean) aren't classes with
-// their own schema — getSchemaPath/ApiExtraModels only work on real DTOs.
+// String, Number and Boolean have no DTO schema, so getSchemaPath and
+// ApiExtraModels can't be used for them.
 const PRIMITIVE_SCHEMAS = new Map<unknown, { type: string }>([
   [String, { type: 'string' }],
   [Number, { type: 'number' }],
@@ -74,9 +22,8 @@ function dataSchema(model: Type<unknown>, isArray: boolean | undefined) {
 }
 
 /**
- * Document a `2xx` that returns the success envelope wrapping a single DTO:
- * `{ success: true, data: <Dto> }` — or, with `{ isArray: true }`, a bare
- * (non-paginated) `<Dto>[]`. Use `ApiPaginatedEnvelope` for a paginated list.
+ * Documents `{ success: true, data: <Dto> }`, or a plain `<Dto>[]` with
+ * `isArray`. Use `ApiPaginatedEnvelope` for paginated lists.
  */
 export function ApiOkEnvelope<TModel extends Type<unknown>>(
   model: TModel,
@@ -104,10 +51,7 @@ export function ApiOkEnvelope<TModel extends Type<unknown>>(
   );
 }
 
-/**
- * Document a `2xx` that returns the paginated envelope wrapping a DTO list:
- * `{ success: true, data: <Dto>[], meta: PaginationMetaDto }`.
- */
+/** Documents the paginated envelope `{ success, data: <Dto>[], meta }`. */
 export function ApiPaginatedEnvelope<TModel extends Type<unknown>>(
   model: TModel,
   options?: { readonly description?: string },
@@ -127,46 +71,4 @@ export function ApiPaginatedEnvelope<TModel extends Type<unknown>>(
       },
     }),
   );
-}
-
-/**
- * Document the domain error `code`s an endpoint can return. Pass codes from the
- * per-domain enums. Codes are grouped by HTTP status (looked up in
- * `ERROR_REGISTRY`): one `@ApiResponse` per status, `$ref`-ing `ErrorResponseDto`,
- * with the eligible codes constrained as the `error.code` enum.
- */
-export function ApiErrorCodes(...codes: string[]) {
-  const byStatus = new Map<number, { code: string; message: string }[]>();
-  for (const code of codes) {
-    const def = ERROR_REGISTRY[code];
-    if (!def) continue;
-    const list = byStatus.get(def.httpStatus) ?? [];
-    list.push({ code, message: def.message });
-    byStatus.set(def.httpStatus, list);
-  }
-
-  const responses = [...byStatus.entries()].map(([status, entries]) =>
-    ApiResponse({
-      status,
-      description: entries
-        .map((entry) => `\`${entry.code}\` — ${entry.message}`)
-        .join('\n\n'),
-      schema: {
-        allOf: [{ $ref: getSchemaPath(ErrorResponseDto) }],
-        properties: {
-          error: {
-            type: 'object',
-            properties: {
-              code: {
-                type: 'string',
-                enum: entries.map((entry) => entry.code),
-              },
-            },
-          },
-        },
-      },
-    }),
-  );
-
-  return applyDecorators(ApiExtraModels(ErrorResponseDto), ...responses);
 }

@@ -6,11 +6,7 @@ import { QUEUE_NAMES } from '../../queue/constants/queue.constants';
 import { buildJobOptions } from '../../queue/utils/job-options.util';
 import { MailJob } from './mail-queue.types';
 
-/**
- * Producer that enqueues mail off the request path. Inherits the shared BullMQ
- * connection from the global QueueModule and the shared retention/backoff
- * defaults from `buildJobOptions`. The job is keyed by its `template` arm.
- */
+/** Queues mail so it is sent off the request path. */
 @Injectable()
 export class MailQueueService {
   constructor(
@@ -18,7 +14,6 @@ export class MailQueueService {
     private readonly config: ConfigService,
   ) {}
 
-  // void-ok: enqueue resolves once the job is added.
   async enqueue(job: MailJob): Promise<void> {
     await this.queue.add(
       job.template,

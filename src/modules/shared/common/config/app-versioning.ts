@@ -1,18 +1,14 @@
 import { type INestApplication, VersioningType } from '@nestjs/common';
 
-/**
- * Single source of truth for the API URL shape. Used by both `main.ts` and the
- * e2e bootstrap so prod and tests can never drift on prefix/versioning/exclude.
- */
+/** Single source of truth for the API URL prefix and version. */
 export const API_PREFIX = 'api';
 export const API_VERSION = '1';
-/** Where Swagger docs mount, e.g. `api/v1`. Derived — keep in lockstep with the prefix. */
+/** Where Swagger docs mount, e.g. `api/v1`. */
 export const DOCS_PREFIX = `${API_PREFIX}/v${API_VERSION}`;
 
 /**
- * Global prefix + native URI versioning. `health`/`root` are excluded from the
- * prefix AND declared `VERSION_NEUTRAL`, so they resolve at `/health` and `/`.
- * Order matters: prefix first, then versioning.
+ * Health and root routes skip the prefix and are `VERSION_NEUTRAL`, so they
+ * stay at `/health` and `/`. Set the prefix before versioning; order matters.
  */
 export function configureVersioning(app: INestApplication): void {
   app.setGlobalPrefix(API_PREFIX, {

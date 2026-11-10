@@ -8,7 +8,6 @@ import { JwtStrategy } from './strategies/jwt.strategy';
 import { MailModule } from '../mail/mail.module';
 import { RedisModule } from '../../shared/redis/redis.module';
 import { UsersModule } from '../../shared/database/users.module';
-import { SmsModule } from '../sms/sms.module';
 
 @Module({
   imports: [
@@ -24,7 +23,6 @@ import { SmsModule } from '../sms/sms.module';
     MailModule,
     RedisModule,
     UsersModule,
-    SmsModule,
   ],
   controllers: [AuthController],
   providers: [AuthService, JwtStrategy],
