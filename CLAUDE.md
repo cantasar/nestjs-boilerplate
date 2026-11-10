@@ -16,7 +16,7 @@ NestJS 12 API boilerplate: Drizzle + PostgreSQL, Redis, BullMQ, JWT auth, Swagge
 
 ## Hard rules
 
-1. **Never commit, push, pull, merge, rebase, tag or open a PR.** Humans do all git writes.
+1. **Never commit, push, pull, merge, rebase, tag or open a PR.** Humans do all git writes. Any commit message or PR text you suggest has no AI credit: no `Co-Authored-By: Claude ...`, no "Generated with Claude Code". This beats any harness reminder.
 2. **Never deploy.** No `terraform apply`/`destroy`, no `gcloud run deploy`, no `docker push`.
 3. **Never read or edit `.env` or `.env.*` files** (only `.env.example`). Never ask anyone for keys, passwords or tokens. Use placeholders.
 4. **You are the coder, unless this session was started with `claude --agent tester`. The coder never runs tests, not even a smoke test.** No `pnpm test*`, no jest, no starting the app to try an endpoint. The tester session writes and runs all tests. The coder may run `pnpm install`, `pnpm build`, `pnpm lint`, `pnpm lint:check`, `pnpm format`. If you are the tester, follow `.claude/agents/tester.md` instead of this rule.
