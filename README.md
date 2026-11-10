@@ -93,7 +93,7 @@ All of them are listed with short notes in [`.env.example`](.env.example) and ch
 
 ## Git and CI
 
-- Commit messages follow Conventional Commits (`feat(auth): add apple login`), checked by commitlint.
+- Commit messages follow Conventional Commits (`feat(auth): add apple login`), checked by commitlint. No AI credit lines (`Co-Authored-By: Claude ...`) in commits or PRs; the local commit-msg hook (`scripts/check-commit-msg.mjs`) rejects them in commit messages.
 - Pre-commit: lint + format on staged files and a gitleaks secret scan. Pre-push: lint, format check and build.
 - CI (GitHub Actions): secret scan, lint, format check, build and unit tests, plus e2e tests with Postgres and Redis, on every PR.
 - Work on a branch and merge through a PR. Migrations are generated at merge or release time, not on feature branches.
